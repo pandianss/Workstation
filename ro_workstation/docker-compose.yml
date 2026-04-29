@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - OLLAMA_MODEL=mistral
+      - OLLAMA_HOST=http://ollama:11434
+      - OFFLINE_MODE=true
+      - INTERNAL_SMTP_HOST=mailserver.banklan
+      - INTERNAL_SMTP_PORT=25
+    volumes:
+      - ./data:/app/data
+      - ./assets/models:/app/assets/models
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_models:/root/.ollama
+    restart: unless-stopped

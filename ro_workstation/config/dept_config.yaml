@@ -1,0 +1,84 @@
+FI:
+  name: "Financial Inclusion"
+  kpis:
+    - "PMJDY accounts opened"
+    - "BC outlet count"
+    - "Aadhaar seeding %"
+  returns:
+    - name: "Monthly PMJDY return"
+      frequency: monthly
+      due_day: 7
+      recipient: HO
+      format: excel
+      reminder_days: [7, 3, 1]
+    - name: "Weekly BC performance return"
+      frequency: weekly
+      due_day: monday
+      reminder_days: [1]
+CRMD:
+  name: "Credit Monitoring"
+  kpis:
+    - "NPA %"
+    - "SMA-0/1/2 tracker"
+    - "Recovery vs target"
+  returns:
+    - name: "Weekly NPA/SMA flash report"
+      frequency: weekly
+      due_day: friday
+      reminder_days: [1]
+    - name: "Monthly credit monitoring return (CMR)"
+      frequency: monthly
+      due_day: 10
+      reminder_days: [7, 3, 1]
+    - name: "Quarterly IRAC review note"
+      frequency: quarterly
+      due_month_day: "Q+10"
+      reminder_days: [14, 7, 3]
+PLAN:
+  name: "Planning"
+  kpis: []
+  returns: []
+ARID:
+  name: "Agriculture & Rural Infra Dev"
+  kpis: []
+  returns: []
+HRDD:
+  name: "Human Resources"
+  kpis: []
+  returns: []
+GAD:
+  name: "General Administration"
+  kpis: []
+  returns: []
+COM:
+  name: "Compliance"
+  kpis: []
+  returns: []
+MKT:
+  name: "Marketing"
+  kpis: []
+  returns: []
+LAW:
+  name: "Law Department"
+  kpis: []
+  returns: []
+INS:
+  name: "Inspection"
+  kpis: []
+  returns: []
+RSK:
+  name: "Risk Management"
+  kpis: []
+  returns: []
+SME:
+  name: "MSME Division"
+  kpis: []
+  returns: []
+RET:
+  name: "Retail Department"
+  kpis: []
+  returns: []
+RCC:
+  name: "Regional Computer Centre"
+  kpis: []
+  returns: []
