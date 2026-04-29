@@ -60,6 +60,9 @@ if require_login():
                 st.Page("pages/ret.py", title="Retail", icon="🏠"),
                 st.Page("pages/rcc.py", title="RCC", icon="💻"),
             ],
+            "System Administration": [
+                st.Page("pages/masters.py", title="Master Data", icon="🗃️"),
+            ],
             "Governance": [
                 st.Page("pages/vault.py", title="Document Vault", icon="🔒"),
                 st.Page("pages/vendors.py", title="Vendor Register", icon="🏢"),
