@@ -10,6 +10,17 @@ from app.services.operation_service import (
 
 def render_operations():
     st.markdown("## Operations")
+    st.markdown(
+        """
+        <div class="glass-panel">
+            <div class="section-title"><strong>Controlled execution</strong></div>
+            <div class="section-kicker">
+                Validate changes before submission, keep account context nearby, and make audit-friendly updates with less friction.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     execute_tab, accounts_tab, history_tab = st.tabs(
         ["Execute Operation", "Accounts", "Operation History"]

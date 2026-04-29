@@ -2,10 +2,20 @@ import streamlit as st
 
 
 def render_operation_form():
+    st.markdown(
+        """
+        <div class="form-shell">
+            <div class="section-title"><strong>Operation request</strong></div>
+            <div class="section-kicker">Enter the core instruction details, then validate before final submission.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     with st.form("operation_form"):
         operation_type = st.selectbox(
             "Operation Type",
             ["Transfer", "Update", "Closure"],
+            help="Choose the action type first so only relevant inputs are shown.",
         )
 
         col1, col2 = st.columns(2)

@@ -1,50 +1,66 @@
+import datetime
+
 import streamlit as st
-from app.services.anniversary_service import get_upcoming_anniversaries, get_congratulations_message
+
+from app.services.anniversary_service import (
+    get_congratulations_message,
+    get_upcoming_anniversaries,
+)
 from app.services.report_service import generate_ro_anniversary_letter
+
 
 def render_anniversary_alerts():
     upcoming = get_upcoming_anniversaries(days=30)
-    
+
     if not upcoming:
         return
-        
-    st.markdown("### 🎊 Branch Anniversaries & Campaigns")
-    
-    # Highlight Today
-    todays = [a for a in upcoming if a['is_today']]
-    for a in todays:
-        st.success(get_congratulations_message(a))
+
+    st.markdown("### Branch Anniversaries and Campaigns")
+
+    todays = [item for item in upcoming if item["is_today"]]
+    if todays:
         st.balloons()
-        # Allow downloading the RO Letter even on the day
-        letter_pdf = generate_ro_anniversary_letter(a)
+
+    for item in todays:
+        st.success(get_congratulations_message(item))
+        letter_pdf = generate_ro_anniversary_letter(item)
         st.download_button(
-            label=f"📜 Download RO Congratulatory Letter for {a['name']}",
+            label=f"Download RO congratulatory letter for {item['name']}",
             data=letter_pdf,
-            file_name=f"RO_Letter_{a['code']}_{a['anniversary_date'].year}.pdf",
+            file_name=f"RO_Letter_{item['code']}_{item['anniversary_date'].year}.pdf",
             mime="application/pdf",
-            key=f"dl_{a['code']}"
+            key=f"dl_{item['code']}",
         )
-            
-    # Campaigns & Upcoming
-    future = [a for a in upcoming if not a['is_today']]
-    if future:
-        for a in future:
-            if a['is_campaign_period']:
-                st.info(f"🚀 **{a['name']}** ({a['code']}) is in its **Special Business Fortnight** drive! (Foundation Day: {a['anniversary_date'].strftime('%d %B')})")
-                col1, col2 = st.columns([3, 1])
-                col1.write(f"The **{a['name']}** branch is currently running special campaigns leading up to its **{a['years']}th Anniversary**.")
-                
-                letter_pdf = generate_ro_anniversary_letter(a)
-                col2.download_button(
-                    label="📜 RO Letter",
-                    data=letter_pdf,
-                    file_name=f"RO_Letter_{a['code']}.pdf",
-                    mime="application/pdf",
-                    key=f"cp_{a['code']}"
-                )
-            
-        with st.expander("Other Upcoming Anniversaries", expanded=False):
-            for a in [f for f in future if not f['is_campaign_period']]:
-                import datetime
-                days_left = (a['anniversary_date'] - datetime.date.today()).days
-                st.write(f"📅 **{a['anniversary_date'].strftime('%d %B')}**: **{a['name']}** ({a['years']} Years) — *In {days_left} days*")
+
+    future = [item for item in upcoming if not item["is_today"]]
+    if not future:
+        return
+
+    for item in future:
+        if item["is_campaign_period"]:
+            st.info(
+                f"**{item['name']}** ({item['code']}) is in its **Special Business Fortnight** drive. "
+                f"Foundation Day: {item['anniversary_date'].strftime('%d %B')}."
+            )
+            col1, col2 = st.columns([3, 1])
+            col1.write(
+                f"The **{item['name']}** branch is currently running special campaigns leading up to its "
+                f"**{item['years']}th Anniversary**."
+            )
+
+            letter_pdf = generate_ro_anniversary_letter(item)
+            col2.download_button(
+                label="RO Letter",
+                data=letter_pdf,
+                file_name=f"RO_Letter_{item['code']}.pdf",
+                mime="application/pdf",
+                key=f"cp_{item['code']}",
+            )
+
+    with st.expander("Other Upcoming Anniversaries", expanded=False):
+        for item in [entry for entry in future if not entry["is_campaign_period"]]:
+            days_left = (item["anniversary_date"] - datetime.date.today()).days
+            st.write(
+                f"**{item['anniversary_date'].strftime('%d %B')}**: **{item['name']}** "
+                f"({item['years']} Years), in {days_left} days."
+            )

@@ -6,5 +6,15 @@
   {
     "username": "63039",
     "role": "MANAGER"
+  },
+  {
+    "username": "63040",
+    "role": "MANAGER",
+    "dept": "3933"
+  },
+  {
+    "username": "63041",
+    "role": "MANAGER",
+    "dept": "3933"
   }
 ]

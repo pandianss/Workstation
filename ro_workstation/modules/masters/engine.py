@@ -101,8 +101,20 @@ def init_default_masters():
     count = session.query(MasterRecord).count()
     if count == 0:
         defaults = [
-            ("DEPARTMENT", "CRMD", "Credit Risk Management Dept", "क्रेडिट जोखिम प्रबंधन विभाग", "கடன் ஆபத்து மேலாண்மை"),
-            ("DEPARTMENT", "HRDD", "Human Resources Dept", "मानव संसाधन विभाग", "மனித வளத் துறை"),
+            ("DEPARTMENT", "FI", "Financial Inclusion", "वित्तीय समावेशन", "நிதி உள்ளடக்கம்"),
+            ("DEPARTMENT", "CRMD", "Credit Monitoring", "क्रेडिट निगरानी", "கடன் கண்காணிப்பு"),
+            ("DEPARTMENT", "PLAN", "Planning", "योजना विभाग", "திட்டமிடல்"),
+            ("DEPARTMENT", "ARID", "Agriculture & Rural Infra Dev", "कृषि एवं ग्रामीण विकास", "வேளாண்மை மற்றும் ஊரக வளர்ச்சி"),
+            ("DEPARTMENT", "HRDD", "Human Resources", "मानव संसाधन", "மனித வள மேம்பாடு"),
+            ("DEPARTMENT", "GAD", "General Administration", "सामान्य प्रशासन", "பொदु நிர்வாகம்"),
+            ("DEPARTMENT", "COM", "Compliance", "अनुपालन विभाग", "இணக்கத் துறை"),
+            ("DEPARTMENT", "MKT", "Marketing", "विपणन विभाग", "சந்தைப்படுத்தல்"),
+            ("DEPARTMENT", "LAW", "Law Department", "विधि विभाग", "சட்டத் துறை"),
+            ("DEPARTMENT", "INS", "Inspection", "निरीक्षण विभाग", "ஆய்வுத் துறை"),
+            ("DEPARTMENT", "RSK", "Risk Management", "जोखिम प्रबंधन", "இடர் மேலாண்மை"),
+            ("DEPARTMENT", "SME", "MSME Division", "एमएसएमई प्रभाग", "சிறு, குறு மற்றும் நடுத்தர தொழில்"),
+            ("DEPARTMENT", "RET", "Retail Department", "खुदरा विभाग", "சில்லறை வணிகம்"),
+            ("DEPARTMENT", "RCC", "Regional Computer Centre", "क्षेत्रीय कंप्यूटर केंद्र", "மண்டல கணினி மையம்"),
             ("BRANCH", "B001", "Dindigul Main", "डिंडीगुल मेन", "திண்டுக்கல் பிரதான"),
             ("BRANCH", "B002", "Palani", "पलानी", "பழனி"),
             ("USER_ROLE", "RO_ADMIN", "Regional Office Admin", "क्षेत्रीय कार्यालय व्यवस्थापक", "மண்டல அலுவலக நிர்வாகி"),

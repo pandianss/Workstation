@@ -18,6 +18,17 @@ from modules.tasks.engine import parse_nlp_task
 
 def render_intelligence():
     st.markdown("## Intelligence")
+    st.markdown(
+        """
+        <div class="glass-panel">
+            <div class="section-title"><strong>Analysis and automation</strong></div>
+            <div class="section-kicker">
+                Explore patterns, ask questions against indexed knowledge, and turn instructions into action-ready tasks.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     analytics_tab, ask_tab, task_tab, knowledge_tab, perf_tab = st.tabs(
         ["Task Analytics", "Ask Knowledge Base", "Create Task From Prompt", "Manage Knowledge Base", "Performance Insights"]
