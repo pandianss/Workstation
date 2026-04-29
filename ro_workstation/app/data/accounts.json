@@ -1,0 +1,26 @@
+[
+  {
+    "account_number": "1000000001",
+    "branch": "RO001",
+    "holder_name": "Acme Traders",
+    "balance": 500000.0,
+    "status": "ACTIVE",
+    "remarks": "Seeded account"
+  },
+  {
+    "account_number": "1000000002",
+    "branch": "RO001",
+    "holder_name": "North Field Agro",
+    "balance": 150000.0,
+    "status": "ACTIVE",
+    "remarks": "Seeded account"
+  },
+  {
+    "account_number": "1000000003",
+    "branch": "RO002",
+    "holder_name": "Closure Candidate",
+    "balance": 0.0,
+    "status": "ACTIVE",
+    "remarks": "Eligible for closure"
+  }
+]

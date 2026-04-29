@@ -1,0 +1,32 @@
+.main {
+    padding: 1.5rem;
+}
+
+h1, h2, h3 {
+    font-weight: 600;
+}
+
+[data-testid="stMetric"] {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+[data-testid="stMetric"] label,
+[data-testid="stMetric"] div {
+    color: #f8fafc !important;
+}
+
+.sidebar .sidebar-content {
+    background-color: #0e1a2b;
+    color: white;
+}
