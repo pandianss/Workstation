@@ -12,20 +12,9 @@ from reportlab.lib.colors import HexColor
 from reportlab.graphics import renderPDF
 from svglib.svglib import svg2rlg
 
-# Official RO Identity
-RO_BLUE = HexColor('#21357F')
-LOGO_PATH = r"C:\Users\63039\Videos\workstation\Workstation\doc.svg"
+from .identity import RO_BLUE, UNICODE_FONT, RO_IDENTITY
 
-# Register Nirmala UI for Trilingual (Tamil/Hindi) support
-# Nirmala.ttc is standard on Windows and supports all Indian languages
-try:
-    font_path = "C:/Windows/Fonts/Nirmala.ttc"
-    # reportlab can sometimes handle .ttc collections directly
-    pdfmetrics.registerFont(TTFont('Nirmala', font_path))
-    UNICODE_FONT = 'Nirmala'
-except Exception as e:
-    print(f"Font Load Error: {e}")
-    UNICODE_FONT = 'Helvetica' # Fallback to standard
+LOGO_PATH = r"C:\Users\63039\Videos\workstation\Workstation\doc.svg"
 
 def draw_ro_template(canvas, doc):
     """Draws the high-fidelity RO stationary header and footer on every page."""
@@ -52,22 +41,46 @@ def draw_ro_template(canvas, doc):
     canvas.setFillColor(colors.white)
     canvas.setFont(UNICODE_FONT, 9)
     # Centered trilingual designation
-    ro_title = "Regional Office, Dindigul | மண்டல அலுவலகம், திண்டுக்கல் | क्षेत्रीय कार्यालय, दिण्डुक्कल"
+    ro_title = f"{RO_IDENTITY['office_name_en']} | {RO_IDENTITY['office_name_ta']} | {RO_IDENTITY['office_name_hi']}"
     canvas.drawCentredString(4.25 * inch, 10.11 * inch, ro_title)
     
-    # 3. Address & Communication (Compact, below the bar)
+    # 3. Trilingual Columnar Address Block (Using Table for robust layout)
+    from reportlab.platypus import Table, TableStyle, Paragraph
+    from reportlab.lib.styles import ParagraphStyle
+    
+    col_style = ParagraphStyle('ColStyle', fontName=UNICODE_FONT, fontSize=7, leading=8, alignment=1)
+    col_style_bold = ParagraphStyle('ColStyleBold', parent=col_style, fontSize=7.5, fontName=UNICODE_FONT)
+    
+    header_data = [
+        [
+            Paragraph(f"<b>{RO_IDENTITY['office_name_ta']}</b><br/>{RO_IDENTITY['address_ta']}", col_style),
+            Paragraph(f"<b>{RO_IDENTITY['office_name_en']}</b><br/>{RO_IDENTITY['address_en']}", col_style),
+            Paragraph(f"<b>{RO_IDENTITY['office_name_hi']}</b><br/>{RO_IDENTITY['address_hi']}", col_style)
+        ]
+    ]
+    
+    header_table = Table(header_data, colWidths=[2.5 * inch, 2.5 * inch, 2.5 * inch])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    
+    w, h = header_table.wrap(7.5 * inch, 1 * inch)
+    header_table.drawOn(canvas, 0.5 * inch, 10.0 * inch - h)
+    
+    # 4. Contact Line (Full width centered below table)
     canvas.setFillColor(colors.black)
     canvas.setFont(UNICODE_FONT, 8)
-    address_line1 = "17-i, First Floor, Pensioner Street, Palani Road, Dindigul - 624001"
-    comm_line = "Phone: 89259 53933 | Email: 3933ro@iob.bank.in"
+    canvas.drawCentredString(4.25 * inch, 10.0 * inch - h - 0.15 * inch, RO_IDENTITY['contact_line'])
     
-    canvas.drawCentredString(4.25 * inch, 9.9 * inch, address_line1)
-    canvas.drawCentredString(4.25 * inch, 9.78 * inch, comm_line)
-    
-    # 4. Secondary Divider Line
+    # 5. Secondary Divider Line
+    div_y = 10.0 * inch - h - 0.22 * inch
     canvas.setStrokeColor(RO_BLUE)
     canvas.setLineWidth(0.5)
-    canvas.line(0.5 * inch, 9.7 * inch, 8.0 * inch, 9.7 * inch)
+    canvas.line(0.5 * inch, div_y, 8.0 * inch, div_y)
     
     # 5. Footer with Branding
     canvas.line(0.5 * inch, 0.75 * inch, 8.0 * inch, 0.75 * inch)

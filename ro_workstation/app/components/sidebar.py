@@ -22,7 +22,7 @@ def render_sidebar():
 
     page = st.sidebar.radio(
         "Navigation",
-        ["Dashboard", "Operations", "Intelligence", "Performance MIS", "Admin"],
+        ["Dashboard", "Operations", "Guardian", "Intelligence", "Performance MIS", "Admin"],
         label_visibility="collapsed",
     )
 

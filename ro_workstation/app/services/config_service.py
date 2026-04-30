@@ -11,9 +11,17 @@ if not CONFIG_FILE.exists():
         json.dump({"theme": "light", "max_tasks_displayed": 100}, f)
 
 def get_config():
-    with open(CONFIG_FILE) as f:
+    with open(CONFIG_FILE, encoding="utf-8") as f:
         return json.load(f)
 
 def get_value(key, default=None):
     config = get_config()
     return config.get(key, default)
+
+
+def update_config(values):
+    config = get_config()
+    config.update(values)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+    return config

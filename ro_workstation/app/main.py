@@ -25,6 +25,9 @@ if page == "Dashboard":
     render_dashboard()
 elif page == "Operations":
     render_operations()
+elif page == "Guardian":
+    from app.views.guardian import render_guardian_view
+    render_guardian_view()
 elif page == "Intelligence":
     render_intelligence()
 elif page == "Performance MIS":

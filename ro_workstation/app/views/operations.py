@@ -53,3 +53,7 @@ def render_operations():
     with history_tab:
         st.caption("Each submitted operation is recorded here, including failed attempts.")
         st.dataframe(get_operation_history(), use_container_width=True, hide_index=True)
+
+    with history_tab:
+        st.caption("Each submitted operation is recorded here, including failed attempts.")
+        st.dataframe(get_operation_history(), use_container_width=True, hide_index=True)

@@ -4,29 +4,38 @@ from app.services.admin_service import get_users
 from app.services.config_service import get_value
 
 
+from app.services.session_service import is_session_active, start_session, end_session
+
 def require_login():
     pc_username = getpass.getuser()
-
-    if st.session_state.get("admin_logged_in"):
+    
+    # 1. Persistent Session Check (Cross-Reload)
+    is_admin_override = is_session_active(pc_username)
+    
+    if is_admin_override:
+        st.session_state["admin_logged_in"] = True
         st.session_state["username"] = "special_admin"
         st.session_state["role"] = "ADMIN"
         st.session_state["user_dept"] = "ALL"
-        st.sidebar.success("Logged in as Special Admin")
-        if st.sidebar.button("Logout Admin"):
+        st.sidebar.success("🛡️ RO Admin Access Active")
+        if st.sidebar.button("Exit Admin Mode"):
+            end_session(pc_username)
             st.session_state["admin_logged_in"] = False
             st.rerun()
         return True
 
+    # 2. Standard Staff Auto-Login
     users_df = get_users()
     user_record = users_df[users_df["username"] == pc_username]
 
     if not user_record.empty:
-        role = user_record.iloc[0]["role"]
-        dept = user_record.iloc[0]["dept"] if "dept" in user_record.columns else "ALL"
+        role = user_record.iloc[0].get("role", "USER")
+        depts = user_record.iloc[0].get("depts", [user_record.iloc[0].get("dept", "3933")])
+        
         st.session_state["username"] = pc_username
         st.session_state["role"] = role
-        st.session_state["user_dept"] = dept or "ALL"
-        st.sidebar.success(f"Auto-logged in as {pc_username} ({role})")
+        st.session_state["user_depts"] = depts
+        st.sidebar.success(f"👤 {pc_username} ({role})")
 
         with st.sidebar.expander("Admin Override"):
             with st.form("admin_login"):
@@ -34,25 +43,22 @@ def require_login():
                 if st.form_submit_button("Login"):
                     expected_pass = get_value("admin_password", "admin")
                     if admin_pass == expected_pass:
+                        start_session(pc_username) # Persist across reloads
                         st.session_state["admin_logged_in"] = True
-                        st.session_state["role"] = "ADMIN"
-                        st.session_state["username"] = "special_admin"
-                        st.session_state["user_dept"] = "ALL"
                         st.rerun()
                     else:
                         st.error("Invalid password")
         return True
 
-    st.warning(f"PC User '{pc_username}' not recognized. Please login as Admin to continue.")
+    # 3. Fallback for unrecognized PC users
+    st.warning(f"PC User '{pc_username}' not recognized. Please login as Admin.")
     with st.form("admin_login_main"):
         admin_pass = st.text_input("Admin Password", type="password")
         if st.form_submit_button("Login"):
             expected_pass = get_value("admin_password", "admin")
             if admin_pass == expected_pass:
+                start_session(pc_username)
                 st.session_state["admin_logged_in"] = True
-                st.session_state["role"] = "ADMIN"
-                st.session_state["username"] = "special_admin"
-                st.session_state["user_dept"] = "ALL"
                 st.rerun()
             else:
                 st.error("Invalid password")
