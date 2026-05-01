@@ -15,20 +15,20 @@ def render() -> None:
         op_type = st.selectbox("Operation Type", ["Transfer", "Update", "Closure"])
         col1, col2 = st.columns(2)
         with col1:
-            branch = st.text_input("Branch Code")
+            unit = st.text_input("Unit Code")
             account = st.text_input("Primary Account Number")
             destination_account = st.text_input("Destination Account Number") if op_type == "Transfer" else ""
         with col2:
             amount = st.number_input("Amount", min_value=0.0, step=100.0)
             remarks = st.text_area("Remarks")
-            update_field = st.selectbox("Field To Update", ["branch", "holder_name", "status", "remarks"]) if op_type == "Update" else ""
+            update_field = st.selectbox("Field To Update", ["unit", "holder_name", "status", "remarks"]) if op_type == "Update" else ""
             update_value = st.text_input("New Value") if op_type == "Update" else ""
         submitted = st.form_submit_button("Validate and Submit")
 
     if submitted:
         result = service.process_operation(
             {
-                "branch": branch.strip(),
+                "unit": unit.strip(),
                 "account": account.strip(),
                 "amount": float(amount),
                 "type": op_type,

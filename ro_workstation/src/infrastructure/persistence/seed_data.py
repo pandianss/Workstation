@@ -15,21 +15,21 @@ def seed_master_data():
     session = Session()
 
     try:
-        # 1. Seed Branches
-        branches_path = project_path("data", "branches.csv")
-        if not branches_path.exists():
+        # 1. Seed Units
+        units_path = project_path("data", "units.csv")
+        if not units_path.exists():
              # Fallback to root if not in data/
-             branches_path = project_path().parent / "branches.csv"
+             units_path = project_path().parent / "units.csv"
         
-        if branches_path.exists():
-            print(f"Importing branches from {branches_path}")
-            df_branches = pd.read_csv(branches_path)
-            for _, row in df_branches.iterrows():
+        if units_path.exists():
+            print(f"Importing units from {units_path}")
+            df_units = pd.read_csv(units_path)
+            for _, row in df_units.iterrows():
                 # Check if exists
-                exists = session.query(MasterRecordModel).filter_by(category="BRANCH", code=str(row['code'])).first()
+                exists = session.query(MasterRecordModel).filter_by(category="UNIT", code=str(row['code'])).first()
                 if not exists:
                     record = MasterRecordModel(
-                        category="BRANCH",
+                        category="UNIT",
                         code=str(row['code']),
                         name_en=row['nameEn'],
                         name_hi=row.get('nameHi'),

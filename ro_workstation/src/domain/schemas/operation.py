@@ -9,7 +9,7 @@ from src.domain.models.enums import OperationType
 
 class AccountRecord(BaseModel):
     account_number: str
-    branch: str
+    unit: str
     holder_name: str
     balance: float = 0.0
     status: str = "ACTIVE"
@@ -17,7 +17,7 @@ class AccountRecord(BaseModel):
 
 
 class OperationRequest(BaseModel):
-    branch: str
+    unit: str
     account: str
     amount: float = 0.0
     type: OperationType
@@ -33,7 +33,7 @@ class OperationRecord(BaseModel):
     user: str
     type: str
     account: str
-    branch: str
+    unit: str
     status: str
     message: str
     remarks: str = ""

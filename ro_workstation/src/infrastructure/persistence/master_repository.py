@@ -47,3 +47,8 @@ class MasterRepository:
             is_active=domain.is_active,
             metadata_json=json.dumps(domain.metadata) if domain.metadata else None
         )
+    def save(self, domain: MasterRecord) -> None:
+        with self.session_factory() as session:
+            model = self._to_model(domain)
+            session.merge(model)
+            session.commit()

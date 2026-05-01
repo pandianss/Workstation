@@ -1,58 +1,40 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 800px; margin: 40px auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 8px; }
-        .header { text-align: center; border-bottom: 2px solid #254aa0; padding-bottom: 10px; margin-bottom: 20px; }
-        .brand { color: #254aa0; font-weight: bold; font-size: 1.2rem; }
-        .celebration-banner { background: linear-gradient(135deg, #254aa0 0%, #3b82f6 100%); color: white; padding: 20px; text-align: center; border-radius: 8px; margin-bottom: 30px; }
-        .ref-section { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 20px; }
-        .subject { font-weight: bold; text-decoration: underline; margin-bottom: 20px; text-transform: uppercase; text-align: center; color: #254aa0; }
-        .content { text-align: justify; margin-bottom: 20px; }
-        .footer { margin-top: 50px; }
-        .signature-grid { display: flex; justify-content: space-between; margin-top: 60px; }
-        .sig-block { text-align: center; width: 150px; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 0.8rem; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="brand">REGIONAL OFFICE :: DINDIGUL</div>
-        <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 2px;">क्षेत्रीय कार्यालय :: डिண்டிगुल</div>
-        <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 10px;">மண்டல அலுவலகம் :: திண்டுக்கல்</div>
-        <div style="font-size: 0.95rem; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 5px;">Planning Department</div>
-    </div>
+{% extends "base_premium.html" %}
 
-    <div class="celebration-banner">
-        <h2 style="margin: 0;">{{ branch_name }}</h2>
-        <div style="font-size: 1.1rem; opacity: 0.9;">Celebrating {{ years }} Years of Banking Excellence</div>
-        <div style="font-size: 0.9rem; margin-top: 5px;">Founded on {{ foundation_date }}</div>
-    </div>
+{% block content %}
+<div style="background: linear-gradient(135deg, #00338d 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 8px; margin-bottom: 30px;">
+    <h2 style="margin: 0; font-size: 24px;">{{ branch_name }}</h2>
+    <div style="font-size: 1.2rem; opacity: 0.9; margin-top: 10px;">Celebrating {{ anniversary_year }} Years of Banking Excellence</div>
+    {% if foundation_date %}
+    <div style="font-size: 1rem; margin-top: 10px;">Founded on {{ foundation_date }}</div>
+    {% endif %}
+</div>
 
-    <div class="ref-section">
-        <div>Ref: RO/DGL/PLNG/ANNV/{{ branch_code }}</div>
-        <div>Date: {{ date }}</div>
-    </div>
+<div class="doc-title">
+    <h3 style="color: #00338d; text-decoration: underline; text-transform: uppercase;">HEARTY CONGRATULATIONS ON THE {{ anniversary_year }}th ANNIVERSARY</h3>
+</div>
 
-    <div class="subject">
-        SUB: HEARTY CONGRATULATIONS ON THE {{ years }}th ANNIVERSARY OF {{ branch_name }}
-    </div>
+<div class="letter-body">
+    <p>We are pleased to note that <b>{{ branch_name }} ({{ branch_code }})</b> is celebrating its <b>{{ anniversary_year }}th Anniversary</b>{% if foundation_date %} on {{ foundation_date }}{% endif %}.</p>
+    
+    <p>On this momentous occasion, the Regional Office conveys its heartiest congratulations and best wishes to the Branch Manager and all staff members of the branch. We place on record our appreciation for the dedicated service rendered by the branch to our valued customers and the growth achieved over the years.</p>
+    
+    <p>We are confident that the branch will continue to scale new heights in business development and customer service in the years to come.</p>
+</div>
+{% endblock %}
 
-    <div class="content">
-        We are pleased to note that <b>{{ branch_name }} ({{ branch_code }})</b> is celebrating its <b>{{ years }}th Anniversary</b> on {{ foundation_date }}.
+{% block footer %}
+<div class="footer">
+    <div class="signatories-row">
+        <div class="signatory-col">
+            <div class="signature-space">Sd/-</div>
+            <div class="sig-name-en">({{ prepared_by or 'Regional Office' }})</div>
+            <div class="sig-trilingual">Planning Department</div>
+        </div>
+        <div class="signatory-col">
+            <div class="signature-space">Sd/-</div>
+            <div class="sig-name-en">Regional Manager</div>
+            <div class="sig-trilingual">Regional Office</div>
+        </div>
     </div>
-
-    <div class="content">
-        On this momentous occasion, the Regional Office conveys its heartiest congratulations and best wishes to the Branch Manager and all staff members of the branch. We place on record our appreciation for the dedicated service rendered by the branch to our valued customers and the growth achieved over the years.
-    </div>
-
-    <div class="content">
-        We are confident that the branch will continue to scale new heights in business development and customer service in the years to come.
-    </div>
-
-    <div class="signature-grid">
-        <div class="sig-block">Prepared By<br>({{ prepared_by }})</div>
-        <div class="sig-block">Manager (Planning)</div>
-        <div class="sig-block">Regional Manager</div>
-    </div>
-</body>
-</html>
+</div>
+{% endblock %}

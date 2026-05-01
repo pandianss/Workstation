@@ -9,9 +9,9 @@ def get_survey_service():
 
 def render() -> None:
     survey_service = get_survey_service()
-    render_action_bar("Branch Opening Survey", ["Viability Study", "Market Analysis", "Logistics"])
+    render_action_bar("Unit Opening Survey", ["Viability Study", "Market Analysis", "Logistics"])
     
-    st.info("📊 This module calculates branch viability based on working days, cost of deposits, and projected growth.")
+    st.info("📊 This module calculates unit viability based on working days, cost of deposits, and projected growth.")
     
     tabs = st.tabs(["New Survey Report", "Recent Surveys"])
     

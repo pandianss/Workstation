@@ -39,7 +39,7 @@ def render() -> None:
     col_search, col_stats = st.columns([2, 1])
     
     with col_search:
-        query = st.text_input("Unified Search", placeholder="🔎 Search staff, branches, tasks, or MIS references...", key="global_search_input")
+        query = st.text_input("Unified Search", placeholder="🔎 Search staff, units, tasks, or MIS references...", key="global_search_input")
         if query:
             results = pd.DataFrame(search_service.search(query, username))
             if results.empty:

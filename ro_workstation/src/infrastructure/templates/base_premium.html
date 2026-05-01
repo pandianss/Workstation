@@ -3,13 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @page {
-            size: A4;
-            margin: 20mm;
+        /* ── Bundled Unicode Fonts ── */
+        @font-face {
+            font-family: 'GoogleSans';
+            src: url('{{ font_base_url }}GoogleSans-Regular.ttf') format('truetype');
+            font-weight: 400;
         }
-        
+        @font-face {
+            font-family: 'GoogleSans';
+            src: url('{{ font_base_url }}GoogleSans-Bold.ttf') format('truetype');
+            font-weight: 700;
+        }
+        @font-face {
+            font-family: 'TamilCondensedCustom';
+            src: url('{{ font_base_url }}NotoSansTamilCondensed-Regular.ttf') format('truetype');
+            font-weight: 400;
+        }
+        @font-face {
+            font-family: 'TamilCondensedCustom';
+            src: url('{{ font_base_url }}NotoSansTamilCondensed-Bold.ttf') format('truetype');
+            font-weight: 700;
+        }
+        @font-face {
+            font-family: 'NotoSansDevanagari';
+            src: url('{{ font_base_url }}NotoSansDevanagari-Regular.ttf') format('truetype');
+            font-weight: 400;
+        }
+
+        /* ── Script-specific class selectors ── */
+        .bank-name-ta, .office-label-ta, .address-ta, .tamil-text {
+            font-family: 'TamilCondensedCustom', sans-serif !important;
+            font-stretch: condensed !important;
+            letter-spacing: -0.2px !important;
+        }
+        .bank-name-hi, .office-label-hi, .address-hi, .hindi-text {
+            font-family: 'GoogleSans', 'NotoSansDevanagari', sans-serif !important;
+        }
+
         body { 
-            font-family: 'Segoe UI', Tahoma, sans-serif; 
+            font-family: 'GoogleSans', 'Segoe UI', Tahoma, sans-serif; 
             margin: 0;
             padding: 0;
             background-color: white;
@@ -27,53 +59,41 @@
         .header {
             display: flex;
             align-items: center;
-            border-bottom: 2px solid #00338d;
-            padding-bottom: 15px;
+            justify-content: flex-start;
+            padding-bottom: 20px;
             margin-bottom: 25px;
         }
 
-        .logo-container {
-            width: 80px;
-            margin-right: 20px;
+        .bank-logo {
+            height: 70px;
+            width: auto;
         }
 
-        .logo-img {
-            max-width: 100%;
-            height: auto;
-        }
-
-        .bank-names-container {
-            flex: 1;
+        .info-header-row {
+            background-color: #21357f; /* IOB Logo Blue */
+            color: white !important;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 4px;
+            justify-content: space-between;
+            align-items: stretch;
+            width: 100%;
+            margin-bottom: 10px;
+            border-radius: 2px;
         }
 
-        .bank-name-ta {
-            color: #00338d;
-            font-size: 18px; 
+        .info-header-item {
+            flex: 1;
+            padding: 6px 5px;
             font-weight: 800;
-            line-height: 1.2;
-        }
-
-        .bank-name-hi {
-            color: #00338d;
-            font-size: 16px; 
-            font-weight: 600;
-            line-height: 1.1;
-        }
-
-        .bank-name-en {
-            color: #00338d;
-            font-size: 17px; 
-            font-weight: 800;
+            font-size: 11px;
             text-transform: uppercase;
-            line-height: 1.1;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.5px;
+            border-right: 1px solid rgba(255,255,255,0.2);
         }
 
-        /* 3-Column Info Section */
+        .info-header-item:last-child {
+            border-right: none;
+        }
+
         .info-section {
             display: flex;
             justify-content: space-between;
@@ -96,16 +116,9 @@
             border-right: none;
         }
 
-        .office-label {
-            font-weight: 800;
-            display: block;
-            margin-bottom: 4px;
-            color: #1a1a1a;
-            font-size: 11px;
-        }
-
         .address-text {
-            line-height: 1.3;
+            line-height: 1.4;
+            font-size: 11px;
         }
 
         /* Contact Row */
@@ -143,7 +156,7 @@
 
         .main-title { 
             font-size: 16px; 
-            color: #00338d; 
+            color: #21357f; 
             text-transform: uppercase;
             margin: 0;
             font-weight: 800;
@@ -157,7 +170,7 @@
 
         .section-title {
             font-weight: 800;
-            color: #00338d;
+            color: #21357f;
             margin-top: 20px;
             margin-bottom: 10px;
             font-size: 13px;
@@ -216,30 +229,27 @@
     <div class="page-container">
         <!-- Header with Logo -->
         <div class="header">
-            <div class="logo-container">
-                {% if org.bankLogo %}
-                <img src="{{ org.bankLogo }}" class="logo-img" alt="Logo">
-                {% endif %}
-            </div>
-            <div class="bank-names-container">
-                <div class="bank-name-ta">{{ org.bankNameTa }}</div>
-                <div class="bank-name-hi">{{ org.bankNameHi }}</div>
-                <div class="bank-name-en">{{ org.bankNameEn }}</div>
-            </div>
+            {% if org.bankLogo %}
+            <img src="{{ org.bankLogo }}" alt="Bank Logo" class="bank-logo">
+            {% endif %}
         </div>
 
-        <!-- 3-Column Info Row -->
+        <!-- 3-Column Info Header (Full width colored row) -->
+        <div class="info-header-row" style="text-align: center;">
+            <div class="info-header-item office-label-ta">{{ org.officeNameTa }}</div>
+            <div class="info-header-item office-label-hi">{{ org.officeNameHi }}</div>
+            <div class="info-header-item">{{ org.officeNameEn }}</div>
+        </div>
+
+        <!-- 3-Column Address Row -->
         <div class="info-section">
             <div class="info-col">
-                <span class="office-label">{{ org.officeNameTa }}</span>
-                <div class="address-text">{{ org.addressTaFormatted | safe }}</div>
+                <div class="address-text address-ta">{{ org.addressTaFormatted | safe }}</div>
             </div>
             <div class="info-col">
-                <span class="office-label">{{ org.officeNameHi }}</span>
-                <div class="address-text">{{ org.addressHiFormatted | safe }}</div>
+                <div class="address-text address-hi">{{ org.addressHiFormatted | safe }}</div>
             </div>
             <div class="info-col">
-                <span class="office-label">{{ org.officeNameEn }}</span>
                 <div class="address-text">{{ org.addressEnFormatted | safe }}</div>
             </div>
         </div>
@@ -253,8 +263,8 @@
 
         <!-- Meta Strip -->
         <div class="meta-strip">
-            <span>Ref No: {{ ref_no }}</span>
-            <span>Date: {{ date }}</span>
+            <span>Ref No / संदर्भ संख्या / குறிப்பு எண்: {{ ref_no }}</span>
+            <span>Date / दिनांक / தேதி: {{ date }}</span>
         </div>
 
         <div class="content">
@@ -262,6 +272,7 @@
         </div>
 
         <!-- Footer / Signatories -->
+        {% block footer %}
         <div class="footer">
             <div class="signatories-row">
                 <div class="signatory-col">
@@ -278,6 +289,7 @@
                 {% endfor %}
             </div>
         </div>
+        {% endblock %}
 
         <div class="page-footer">
             Regional Office, Dindigul | Confidential | Generated via Banking Portal

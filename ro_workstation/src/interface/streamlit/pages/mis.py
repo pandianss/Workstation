@@ -9,7 +9,8 @@ from src.core.utils.financial_year import get_fy_start
 from src.domain.schemas.mis import MISFilter
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_premium_metrics, render_chart_container
 
-
+def render() -> None:
+    service = MISAnalyticsService()
     # 1. Base Data Load
     df = service.get_data()
     if df.empty:
@@ -26,7 +27,7 @@ from src.interface.streamlit.components.primitives import render_action_bar, ren
     with col_d:
         selected_date = st.selectbox("Reporting Date", dates, index=len(dates) - 1)
     with col_b:
-        selected_sols = st.multiselect("Branch Focus", sols, default=[])
+        selected_sols = st.multiselect("Unit Focus", sols, default=[])
 
     # 3. Dynamic Snapshot Generation
     snapshot = service.build_snapshot(MISFilter(selected_date=selected_date, sols=selected_sols))
@@ -108,7 +109,7 @@ from src.interface.streamlit.components.primitives import render_action_bar, ren
             st.plotly_chart(fig, use_container_width=True)
 
     with col_table:
-        st.markdown("#### 🏢 Branch Hierarchy")
+        st.markdown("#### 🏢 Unit Hierarchy")
         frame = pd.DataFrame(snapshot.rows)
         if not frame.empty:
             st.dataframe(frame[["SOL", "Total Advances", "Total Deposits", "NPA %"]].sort_values("Total Advances", ascending=False), 

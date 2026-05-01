@@ -15,7 +15,7 @@ from src.infrastructure.persistence.json_repo import JsonRepository
 DEFAULT_ACCOUNTS = [
     {
         "account_number": "1000000001",
-        "branch": "RO001",
+        "unit": "RO001",
         "holder_name": "Acme Traders",
         "balance": 500000.0,
         "status": "ACTIVE",
@@ -23,7 +23,7 @@ DEFAULT_ACCOUNTS = [
     },
     {
         "account_number": "1000000002",
-        "branch": "RO001",
+        "unit": "RO001",
         "holder_name": "North Field Agro",
         "balance": 150000.0,
         "status": "ACTIVE",
@@ -31,7 +31,7 @@ DEFAULT_ACCOUNTS = [
     },
     {
         "account_number": "1000000003",
-        "branch": "RO002",
+        "unit": "RO002",
         "holder_name": "Closure Candidate",
         "balance": 0.0,
         "status": "ACTIVE",
@@ -52,7 +52,7 @@ class OperationService:
     def get_operation_history(self, limit: int = 100) -> pd.DataFrame:
         operations = self.operations_repo.read()
         if not operations:
-            return pd.DataFrame(columns=["operation_id", "timestamp", "type", "account", "branch", "status", "message"])
+            return pd.DataFrame(columns=["operation_id", "timestamp", "type", "account", "unit", "status", "message"])
         return pd.DataFrame(operations).sort_values("timestamp", ascending=False).head(limit)
 
     def process_operation(self, data: dict, user: str = "system") -> dict:
@@ -76,7 +76,7 @@ class OperationService:
             "user": user,
             "type": request.type.value,
             "account": request.account,
-            "branch": request.branch,
+            "unit": request.unit,
             "status": "SUCCESS" if success else "FAILED",
             "message": message,
             "remarks": request.remarks,
@@ -99,8 +99,8 @@ class OperationService:
         }
 
     def _validate_operation(self, request: OperationRequest) -> str | None:
-        if not request.branch:
-            return "Branch is required"
+        if not request.unit:
+            return "Unit is required"
         if not request.account:
             return "Primary account number is required"
         if request.type == OperationType.transfer:
@@ -132,8 +132,8 @@ class OperationService:
             return False, "Destination account not found", None
         if source["status"] != "ACTIVE" or destination["status"] != "ACTIVE":
             return False, "Both accounts must be active for transfer", None
-        if source["branch"] != request.branch:
-            return False, "Branch does not match the source account", None
+        if source["unit"] != request.unit:
+            return False, "Unit does not match the source account", None
         if source["balance"] < request.amount:
             return False, "Insufficient balance in the source account", None
 
@@ -153,8 +153,8 @@ class OperationService:
         account = self._find_account(accounts, request.account)
         if not account:
             return False, "Account not found", None
-        if account["branch"] != request.branch:
-            return False, "Branch does not match the selected account", None
+        if account["unit"] != request.unit:
+            return False, "Unit does not match the selected account", None
         before = dict(account)
         account[request.update_field] = request.update_value
         if request.remarks:
@@ -165,8 +165,8 @@ class OperationService:
         account = self._find_account(accounts, request.account)
         if not account:
             return False, "Account not found", None
-        if account["branch"] != request.branch:
-            return False, "Branch does not match the selected account", None
+        if account["unit"] != request.unit:
+            return False, "Unit does not match the selected account", None
         if account["status"] != "ACTIVE":
             return False, "Only active accounts can be closed", None
         if round(account["balance"], 2) != 0:

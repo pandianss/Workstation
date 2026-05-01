@@ -30,16 +30,95 @@ def render() -> None:
     master_service = MasterService()
     admin_service = AdminService()
     audit_logger = AuditLogger()
-    tabs = st.tabs(["Users", "Branches", "Staff", "Departments", "Audit", "Configuration"])
+    tabs = st.tabs(["Users", "Units", "Staff", "Departments", "Audit", "Configuration"])
 
     with tabs[0]:
         render_data_table(admin_service.get_users_frame(), "User access", "users.xlsx")
 
     with tabs[1]:
-        render_data_table(master_service.get_branches_frame(), "Branch Registry", "branches.xlsx")
+        if "unit_update_msg" in st.session_state:
+            st.success(st.session_state.pop("unit_update_msg"))
+            
+        units_df = master_service.get_units_frame()
+        render_data_table(units_df, "Unit Registry", "units.xlsx")
+        
+        st.divider()
+        st.markdown("### 👑 Assign Unit Authorities")
+        staff_df = master_service.get_staff_frame()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            unit_codes = units_df['Code'].tolist()
+            selected_unit_code = st.selectbox("Select Unit to Update", options=unit_codes, format_func=lambda x: f"{x} - {units_df[units_df['Code']==x]['Name'].iloc[0]}")
+        
+        # Get current values for the selected unit
+        current_row = units_df[units_df['Code'] == selected_unit_code].iloc[0]
+        
+        # Filter staff by the SOL of the selected unit
+        selected_unit_sol = selected_unit_code # In this system, Unit Code is the SOL
+        filtered_staff_df = staff_df[staff_df['Branch SOL'] == selected_unit_sol]
+        
+        # Prepare staff options
+        staff_list = filtered_staff_df.to_dict('records')
+        staff_options = [None] + [s['Roll No'] for s in staff_list]
+        def staff_format(x):
+            if x is None: return "None Assigned"
+            s = next((item for item in staff_list if item["Roll No"] == x), None)
+            return f"{x} - {s['Name']}" if s else x
+
+        with col2:
+            current_head = current_row['Head']
+            # If current head is not in filtered list (e.g. transferred), show it anyway but mark it
+            if current_head and current_head != "None" and current_head not in [s['Roll No'] for s in staff_list]:
+                staff_options.append(current_head)
+            
+            head_idx = staff_options.index(current_head) if current_head in staff_options else 0
+            new_head = st.selectbox("Assign Unit Head", options=staff_options, index=head_idx, format_func=staff_format)
+            
+        with col3:
+            current_second = current_row['2nd Line']
+            if current_second and current_second != "None" and current_second not in [s['Roll No'] for s in staff_list]:
+                staff_options.append(current_second)
+                
+            second_idx = staff_options.index(current_second) if current_second in staff_options else 0
+            new_second = st.selectbox("Assign 2nd Line", options=staff_options, index=second_idx, format_func=staff_format)
+            
+        if st.button("💾 Update Unit Authorities", use_container_width=True):
+            if master_service.update_unit_authorities(selected_unit_code, new_head, new_second):
+                st.session_state["unit_update_msg"] = f"✅ Authorities updated successfully for Unit {selected_unit_code}"
+                st.rerun()
+            else:
+                st.error("❌ Failed to update unit authorities.")
 
     with tabs[2]:
-        render_data_table(master_service.get_staff_frame(), "Staff Registry", "staff.xlsx")
+        staff_df = master_service.get_staff_frame()
+        render_data_table(staff_df, "Staff Registry", "staff.xlsx")
+        
+        st.divider()
+        st.markdown("### ✍️ Update Staff Trilingual Names")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            search_roll = st.text_input("Search Roll No")
+        
+        if search_roll:
+            staff_match = staff_df[staff_df['Roll No'] == search_roll]
+            if not staff_match.empty:
+                s_row = staff_match.iloc[0]
+                st.info(f"Staff Found: **{s_row['Name (En)']}** ({s_row['Designation']})")
+                
+                with st.form("staff_name_update"):
+                    new_hi = st.text_input("Name (Hindi)", value=s_row['Name (Hi)'])
+                    new_ta = st.text_input("Name (Tamil)", value=s_row['Name (Ta)'])
+                    
+                    if st.form_submit_button("Update Trilingual Names"):
+                        if master_service.update_staff_names(search_roll, new_hi, new_ta):
+                            st.session_state["unit_update_msg"] = f"✅ Trilingual names updated for {search_roll}"
+                            st.rerun()
+                        else:
+                            st.error("Failed to update staff names.")
+            else:
+                st.warning("Staff member not found.")
 
     with tabs[3]:
         render_data_table(master_service.get_departments_frame(), "Department Registry", "departments.xlsx")

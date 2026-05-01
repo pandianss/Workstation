@@ -31,6 +31,7 @@ def get_qa_service():
 def get_search_service():
     return KnowledgeSearchService()
 
+@st.cache_resource
 def get_doc_service():
     return DocumentService()
 
@@ -38,11 +39,23 @@ def get_doc_service():
 def get_mail_merge_service():
     return MailMergeService()
 
+@st.cache_resource
 def get_advances_service():
     return AdvancesService()
 
+@st.cache_resource
 def get_circular_service():
     return CircularService()
+
+@st.cache_resource
+def get_master_service():
+    from src.application.services.master_service import MasterService
+    return MasterService()
+
+@st.cache_data(show_spinner="Generating PDF...")
+def _generate_circular_pdf_cached(circular_data: dict):
+    """Caches the expensive PDF generation process."""
+    return get_doc_service().generate_circular_pdf(circular_data)
 
 
 def render() -> None:
@@ -192,15 +205,23 @@ def render() -> None:
                     
                     with col_action:
                         st.write("") # Spacer
-                        pdf_bytes = doc_service.generate_circular_pdf(c)
-                        st.download_button(
-                            "📥 Download PDF",
-                            data=pdf_bytes,
-                            file_name=f"Circular_{ref.replace('/', '_')}.pdf",
-                            mime="application/pdf",
-                            key=f"dl_circ_{i}",
-                            use_container_width=True
-                        )
+                        circ_id = f"circ_{i}_{ref.replace('/', '_')}"
+                        
+                        # Lazy Generation Pattern
+                        if st.button("📄 Prepare", key=f"prep_{circ_id}", use_container_width=True):
+                            with st.spinner("Generating..."):
+                                pdf_bytes = doc_service.generate_circular_pdf(c)
+                                st.session_state[f"pdf_{circ_id}"] = pdf_bytes
+                        
+                        if f"pdf_{circ_id}" in st.session_state:
+                            st.download_button(
+                                "📥 Download",
+                                data=st.session_state[f"pdf_{circ_id}"],
+                                file_name=f"Circular_{ref.replace('/', '_')}.pdf",
+                                mime="application/pdf",
+                                key=f"dl_{circ_id}",
+                                use_container_width=True
+                            )
         else:
             st.info("No published circulars found.")
 
@@ -282,11 +303,20 @@ def render() -> None:
                 ref = st.text_input("Reference No (Optional)", placeholder="Leave blank for auto-gen")
                 prepared_by = st.text_input("Prepared By", value=st.session_state.get("display_name") or st.session_state.get("username", "Staff User"))
             
-            signatories = st.multiselect(
-                "Additional Signatories",
-                options=["Manager", "Senior Manager", "Chief Manager", "Asst. General Manager", "Deputy General Manager", "Regional Manager"],
-                default=["Manager", "Senior Manager", "Chief Manager"]
+            # Dynamic Signatories from Master Registry (Scale IV and above)
+            master_service = get_master_service()
+            exec_list = master_service.get_ro_executives()
+            exec_options = {e["roll"]: e["name"] for e in exec_list}
+            
+            selected_sig_rolls = st.multiselect(
+                "Additional Signatories (Regional Office Executives)",
+                options=list(exec_options.keys()),
+                format_func=lambda x: exec_options[x],
+                help="Select executives who will sign this office note."
             )
+            
+            # Convert rolls back to display names for the template logic if needed
+            signatories = [exec_options[r] for r in selected_sig_rolls]
             
             intro = st.text_area(
                 "Introduction / Context",
@@ -432,3 +462,4 @@ def render() -> None:
                             )
                         except Exception as e:
                             st.error(f"Merge failed: {str(e)}")
+ 
