@@ -1,0 +1,15 @@
+[
+  {
+    "operation_id": "1d816698-aad3-4b89-b99d-f7f877073b16",
+    "timestamp": "2026-04-30T18:54:57.752587+00:00",
+    "user": "tester",
+    "type": "Closure",
+    "account": "A1",
+    "branch": "RO001",
+    "status": "FAILED",
+    "message": "Account balance must be zero before closure",
+    "remarks": "Close this account",
+    "details": null,
+    "destination_account": null
+  }
+]

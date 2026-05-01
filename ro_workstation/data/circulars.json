@@ -1,0 +1,39 @@
+{
+    "circulars": [
+        {
+            "title": "Quarterly Closing Guidelines - June 2026",
+            "number": "RO/OPR/2026/14",
+            "category": "Operations",
+            "date": "2026-04-25",
+            "filename": "closing_guidelines_q1.pdf"
+        },
+        {
+            "title": "Interest Rate Revision - Retail Lending",
+            "number": "RO/RETAIL/2026/08",
+            "category": "Retail",
+            "date": "2026-04-20",
+            "filename": "roi_revision_retail.pdf"
+        },
+        {
+            "title": "Mandatory Cyber Security Training for Staff",
+            "number": "RO/IT/2026/22",
+            "category": "IT",
+            "date": "2026-04-28",
+            "filename": "cyber_security_notice.pdf"
+        },
+        {
+            "title": "Recruitment of Sub-Staff in Dindigul Region",
+            "number": "RO/HR/2026/05",
+            "category": "HR",
+            "date": "2026-04-15",
+            "filename": "hr_recruitment_substaff.pdf"
+        },
+        {
+            "title": "Recovery Drive: Special Lok Adalat June 2026",
+            "number": "RO/REC/2026/12",
+            "category": "Recovery",
+            "date": "2026-04-30",
+            "filename": "lok_adalat_schedule.pdf"
+        }
+    ]
+}

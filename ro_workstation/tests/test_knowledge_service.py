@@ -1,34 +1,42 @@
-import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
-from app.services import knowledge_service
+from application.use_cases.knowledge.indexing import KnowledgeIndexingService
+from core.paths import project_path
 
 
-class KnowledgeServiceTests(unittest.TestCase):
+class KnowledgeIndexingTests(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        temp_path = Path(self.temp_dir.name)
-        knowledge_service.DATA_DIR = temp_path
-        knowledge_service.KNOWLEDGE_DIR = temp_path / "knowledge_docs"
-        knowledge_service.REGISTRY_FILE = temp_path / "knowledge_index.json"
+        self.temp_path = project_path("data", "test_runtime", f"ro_ws_knowledge_{uuid4().hex}")
+        self.temp_path.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self):
-        self.temp_dir.cleanup()
+        return None
 
     def test_index_saved_document_registers_chunks(self):
-        source = knowledge_service.KNOWLEDGE_DIR / "policy.txt"
-        knowledge_service.KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
+        service = KnowledgeIndexingService()
+        service.knowledge_dir = self.temp_path / "knowledge_docs"
+        service.knowledge_dir.mkdir(parents=True, exist_ok=True)
+        service.registry.path = self.temp_path / "knowledge_index.json"
+        source = service.knowledge_dir / "policy.txt"
         source.write_text("Policy text " * 300, encoding="utf-8")
 
-        with patch("app.services.knowledge_service.index_document") as mock_index:
-            record = knowledge_service.index_saved_document(source, "CRMD", "tester")
+        fake_collection = MagicMock()
+        fake_client = MagicMock()
+        fake_client.get_or_create_collection.return_value = fake_collection
+        service.client = fake_client
 
-        self.assertEqual(record["department"], "CRMD")
-        self.assertGreater(record["chunks"], 1)
-        mock_index.assert_called_once()
+        with patch("application.use_cases.knowledge.indexing.get_embedder") as mock_embedder:
+            mock_embedder.return_value.encode.return_value = [[0.0] * 4] * 3
+            record = service.index_saved_document(source, "CRMD", "tester")
 
-    def test_list_indexed_documents_returns_empty_dataframe_when_uninitialized(self):
-        df = knowledge_service.list_indexed_documents()
-        self.assertTrue(df.empty)
+        self.assertEqual(record.department, "CRMD")
+        self.assertGreater(record.chunks, 1)
+        fake_collection.upsert.assert_called_once()
+
+    def test_list_documents_returns_empty_collection_when_uninitialized(self):
+        service = KnowledgeIndexingService()
+        service.registry.path = self.temp_path / "knowledge_index.json"
+        self.assertEqual(service.list_documents(), [])

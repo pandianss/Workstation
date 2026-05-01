@@ -1,0 +1,180 @@
+from __future__ import annotations
+
+import datetime
+import shutil
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+from src.core.config.config_loader import get_app_settings
+from src.core.paths import project_path
+from src.core.utils.financial_year import get_fy_start, get_quarter_start, get_next_month_end
+from src.domain.schemas.mis import MISFilter, MISSnapshot
+from src.infrastructure.persistence.excel_repo import ExcelRepository
+from src.infrastructure.persistence.mis_repository import MISRepository
+from src.infrastructure.persistence.budget_repository import BudgetRepository
+
+
+class MISAnalyticsService:
+    def __init__(self) -> None:
+        self.settings = get_app_settings()
+        self.mis_dir = project_path("data", "mis")
+        self.archive_dir = self.mis_dir / "archive"
+        self.excel_repo = ExcelRepository()
+        self.repository = MISRepository()
+        self.budget_repo = BudgetRepository()
+
+    def _ingest_new_files(self) -> None:
+        self.mis_dir.mkdir(parents=True, exist_ok=True)
+        self.archive_dir.mkdir(parents=True, exist_ok=True)
+        for file_path in self.mis_dir.glob("*.xlsx"):
+            if self.repository.is_file_ingested(file_path.name):
+                continue
+            frame = self.excel_repo.read(file_path)
+            if "DATE" in frame.columns:
+                frame["DATE"] = pd.to_datetime(
+                    frame["DATE"].astype(str).str.split(".").str[0],
+                    format="%Y%m%d",
+                    errors="coerce",
+                )
+            self.repository.save_records(frame.to_dict("records"))
+            self.repository.mark_file_ingested(file_path.name)
+            shutil.move(str(file_path), str(self.archive_dir / file_path.name))
+
+    @st.cache_data(show_spinner=True)
+    def load_frame(self) -> pd.DataFrame:
+        """Cached data loading and enrichment."""
+        # Note: In production, you'd call self._ingest_new_files() elsewhere (e.g. background task)
+        # to keep the UI fast. For now, we'll keep it but ensure load_frame is cached properly.
+        frame = self.repository.load_frame()
+        if frame.empty:
+            return frame
+        frame.columns = [column.upper().replace("_", " ") for column in frame.columns]
+        frame["DATE"] = pd.to_datetime(frame["DATE"])
+        return self._enrich_metrics(frame)
+
+    def get_data(self) -> pd.DataFrame:
+        """Main entry point for UI, handles ingestion before loading."""
+        # Only ingest if there are actually files to ingest
+        if list(self.mis_dir.glob("*.xlsx")):
+            self._ingest_new_files()
+        return self.get_data()
+
+    @staticmethod
+    def _enrich_metrics(frame: pd.DataFrame) -> pd.DataFrame:
+        def safe_sum(df, columns):
+            existing = [column for column in columns if column in df.columns]
+            return df[existing].fillna(0).sum(axis=1) if existing else 0
+
+        frame["CORE RETAIL"] = safe_sum(frame, ["HOUSING", "VEHICLE", "PERSONAL", "MORTGAGE", "EDUCATION", "LIQUIRENT", "OTHER RETAIL"])
+        frame["Total Advances"] = safe_sum(frame, ["CORE AGRI", "GOLD", "MSME", "CORE RETAIL"])
+        frame["CASA"] = safe_sum(frame, ["SB", "CD"])
+        td = frame["TD"].fillna(0) if "TD" in frame.columns else 0
+        bulk = frame["BULK DEP"].fillna(0) if "BULK DEP" in frame.columns else 0
+        frame["Ret TD"] = td - bulk
+        frame["Total Deposits"] = safe_sum(frame, ["SB", "CD", "TD"])
+        frame["CD Ratio"] = np.where(frame["Total Deposits"] > 0, frame["Total Advances"] / frame["Total Deposits"] * 100, 0).round(2)
+        frame["Total Cash"] = safe_sum(frame, ["CASH ON HAND", "ATM CASH", "BC CASH", "BNA CASH"])
+        crl = frame["CRL"].fillna(0) if "CRL" in frame.columns else 0
+        frame["Cash vs CRL"] = frame["Total Cash"] - crl
+        frame["Total Recovery"] = safe_sum(frame, ["REC Q1", "REC Q2", "REC Q3", "REC Q4"])
+        npa = frame["NPA"].fillna(0) if "NPA" in frame.columns else 0
+        frame["NPA %"] = np.where(frame["Total Advances"] > 0, npa / frame["Total Advances"] * 100, 0).round(2)
+        return frame
+
+    def build_snapshot(self, filters: MISFilter) -> MISSnapshot | None:
+        frame = self.get_data()
+        if frame.empty:
+            return None
+        dates = sorted(frame["DATE"].dropna().dt.date.unique())
+        selected_date = filters.selected_date or dates[-1]
+        selected = frame[frame["DATE"].dt.date == selected_date].copy()
+        history = frame.copy()
+        if filters.sols:
+            selected = selected[selected["SOL"].isin(filters.sols)]
+            history = history[history["SOL"].isin(filters.sols)]
+        elif self.settings.region_code.isdigit():
+            aggregate_sol = int(self.settings.region_code)
+            regional = selected[selected["SOL"] == aggregate_sol]
+            selected = regional if not regional.empty else selected
+            history = history[history["SOL"] == aggregate_sol] if not history[history["SOL"] == aggregate_sol].empty else history
+
+        kpis = {
+            "Total Advances": float(selected["Total Advances"].sum()) if "Total Advances" in selected.columns else 0.0,
+            "Total Deposits": float(selected["Total Deposits"].sum()) if "Total Deposits" in selected.columns else 0.0,
+            "NPA": float(selected["NPA"].sum()) if "NPA" in selected.columns else 0.0,
+            "CD Ratio": float(selected["CD Ratio"].mean()) if "CD Ratio" in selected.columns else 0.0,
+        }
+        sols = sorted(frame["SOL"].dropna().astype(int).unique().tolist())
+        return MISSnapshot(
+            selected_date=selected_date,
+            available_dates=dates,
+            available_sols=sols,
+            kpis=kpis,
+            rows=selected.to_dict("records"),
+            history_rows=history.to_dict("records"),
+        )
+
+    def get_performance_metrics(self, selected_date: datetime.date, metric_name: str = "Total Advances", sols: list[int] | None = None) -> dict:
+        frame = self.get_data()
+        if frame.empty:
+            return {}
+
+        # Filter frame by SOLs if provided, else by region aggregate if available
+        filtered_history = frame.copy()
+        if sols:
+            filtered_history = filtered_history[filtered_history["SOL"].isin(sols)]
+        elif self.settings.region_code.isdigit():
+            reg_sol = int(self.settings.region_code)
+            # Try to filter by regional aggregate SOL first
+            regional_data = filtered_history[filtered_history["SOL"] == reg_sol]
+            if not regional_data.empty:
+                filtered_history = regional_data
+
+        # 1. FY Growth (from April 1st)
+        fy_start = get_fy_start(selected_date)
+        
+        # Get actuals for selected date
+        current_data = filtered_history[filtered_history["DATE"].dt.date == selected_date]
+        current_val = current_data[metric_name].sum() if not current_data.empty else 0.0
+
+        # Get actuals for FY Start (using same SOL filter)
+        fy_start_data = filtered_history[filtered_history["DATE"].dt.date == fy_start]
+        if fy_start_data.empty:
+            # Fallback: find the earliest record in this FY
+            fy_start_data = filtered_history[filtered_history["DATE"].dt.date >= fy_start].sort_values("DATE").head(1)
+        
+        fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty else 0.0
+        
+        # If still zero, try any earliest record ever as last resort to avoid 10000% growth
+        if fy_start_val == 0:
+            fy_start_data = filtered_history.sort_values("DATE").head(1)
+            fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty else 0.0
+
+        fy_growth = current_val - fy_start_val
+        fy_growth_pct = (fy_growth / fy_start_val * 100) if fy_start_val > 0 else 0.0
+
+        # 2. Gaps to Budget
+        curr_month_str = selected_date.strftime("%Y-%m")
+        next_month_date = get_next_month_end(selected_date)
+        next_month_str = next_month_date.strftime("%Y-%m")
+
+        target_curr_month = self.budget_repo.get_target(metric_name, curr_month_str)
+        target_next_month = self.budget_repo.get_target(metric_name, next_month_str)
+        target_fy = self.budget_repo.get_target(metric_name)
+
+        return {
+            "current_actual": current_val,
+            "fy_start_actual": fy_start_val,
+            "fy_growth": fy_growth,
+            "fy_growth_pct": fy_growth_pct,
+            "gap_current_month": target_curr_month - current_val,
+            "gap_next_month": target_next_month - current_val,
+            "gap_fy": target_fy - current_val,
+            "targets": {
+                "month": target_curr_month,
+                "next_month": target_next_month,
+                "fy": target_fy
+            }
+        }

@@ -1,0 +1,26 @@
+[
+  {
+    "account_number": "A1",
+    "branch": "RO001",
+    "holder_name": "Source",
+    "balance": 700.0,
+    "status": "ACTIVE",
+    "remarks": "Move funds"
+  },
+  {
+    "account_number": "A2",
+    "branch": "RO002",
+    "holder_name": "Destination",
+    "balance": 550.0,
+    "status": "ACTIVE",
+    "remarks": "Received transfer from A1"
+  },
+  {
+    "account_number": "A3",
+    "branch": "RO001",
+    "holder_name": "Closure",
+    "balance": 0.0,
+    "status": "ACTIVE",
+    "remarks": ""
+  }
+]

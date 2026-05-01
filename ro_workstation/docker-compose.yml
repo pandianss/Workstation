@@ -4,14 +4,15 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - OLLAMA_MODEL=mistral
-      - OLLAMA_HOST=http://ollama:11434
-      - OFFLINE_MODE=true
-      - INTERNAL_SMTP_HOST=mailserver.banklan
-      - INTERNAL_SMTP_PORT=25
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OFFLINE_MODE: ${OFFLINE_MODE:-true}
+      INTERNAL_SMTP_HOST: ${INTERNAL_SMTP_HOST:-mailserver.banklan}
+      INTERNAL_SMTP_PORT: ${INTERNAL_SMTP_PORT:-25}
     volumes:
       - ./data:/app/data
       - ./assets/models:/app/assets/models
+      - ./mis:/app/mis
     depends_on:
       - ollama
     restart: unless-stopped

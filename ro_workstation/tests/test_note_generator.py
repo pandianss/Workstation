@@ -50,7 +50,7 @@ class NoteGeneratorTests(unittest.TestCase):
             html = generator.generate_html_note("Payment of Bills", "raw")
 
         self.assertIn("PAYMENT OF BILLS - DRAFT", html)
-        self.assertIn("Dream Designers", html)
+        self.assertIn("Manual Entry Required", html)
         self.assertIn("signature-table", html)
 
 
