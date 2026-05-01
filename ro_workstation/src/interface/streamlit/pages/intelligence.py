@@ -29,7 +29,6 @@ def get_qa_service():
 def get_search_service():
     return KnowledgeSearchService()
 
-@st.cache_resource
 def get_doc_service():
     return DocumentService()
 
@@ -95,6 +94,55 @@ def render() -> None:
         st.subheader("Trilingual Office Note Generator")
         st.info("Generates notes with standard trilingual headers (English, Hindi, Tamil).")
         
+        st.markdown("#### AI-Assisted Drafting")
+        with st.expander("Generate note content from a brief description", expanded=False):
+            ai_brief = st.text_area(
+                "Brief / Key Points",
+                placeholder=(
+                    "e.g., Bills worth ₹4.2L received for Feb 2026 from vendors ABC and XYZ. "
+                    "Payments pending approval. Budgetary provision exists under GAD head."
+                ),
+                key="ai_brief_input",
+                height=100,
+            )
+            ai_dept_for_draft = st.text_input(
+                "Department",
+                value=st.session_state.get("user_dept", "PLAN"),
+                key="ai_draft_dept",
+            )
+            ai_subject_for_draft = st.text_input(
+                "Subject",
+                placeholder="PAYMENT OF BILLS — FEB 2026",
+                key="ai_draft_subject",
+            )
+            if st.button("Generate Draft with AI", key="ai_draft_btn"):
+                if not ai_brief.strip():
+                    st.error("Enter a brief description first.")
+                else:
+                    with st.spinner("Drafting note content using local AI..."):
+                        try:
+                            from src.infrastructure.llm.client import LLMClient
+                            from src.core.config.config_loader import load_yaml
+
+                            _llm = LLMClient()
+                            _prompts = load_yaml("src/config/prompts.yaml")
+                            _dept_sys = (
+                                _prompts.get(ai_dept_for_draft.upper(), {}).get("system", "")
+                            )
+                            drafted = doc_service.draft_office_note_content(
+                                subject=ai_subject_for_draft.strip() or "Office Note",
+                                department=ai_dept_for_draft.strip(),
+                                brief=ai_brief.strip(),
+                                llm=_llm,
+                                dept_system_prompt=_dept_sys,
+                            )
+                            st.session_state["ai_drafted_intro"] = drafted.get("introduction", "")
+                            st.session_state["ai_drafted_obs"] = drafted.get("observations", "")
+                            st.session_state["ai_drafted_recs"] = drafted.get("recommendations", "")
+                            st.success("Draft generated — review and edit below before generating the note.")
+                        except Exception as e:
+                            st.error(f"AI drafting failed: {e}")
+
         with st.form("office_note_form"):
             col1, col2 = st.columns(2)
             with col1:
@@ -110,9 +158,21 @@ def render() -> None:
                 default=["Manager", "Senior Manager", "Chief Manager"]
             )
             
-            intro = st.text_area("Introduction / Context", placeholder="Briefly describe the purpose of this note.")
-            obs = st.text_area("Observations", placeholder="List technical or financial observations.")
-            recs = st.text_area("Recommendations", placeholder="State the final recommendation for approval.")
+            intro = st.text_area(
+                "Introduction / Context",
+                value=st.session_state.pop("ai_drafted_intro", ""),
+                placeholder="Briefly describe the purpose of this note.",
+            )
+            obs = st.text_area(
+                "Observations",
+                value=st.session_state.pop("ai_drafted_obs", ""),
+                placeholder="List technical or financial observations.",
+            )
+            recs = st.text_area(
+                "Recommendations",
+                value=st.session_state.pop("ai_drafted_recs", ""),
+                placeholder="State the final recommendation for approval.",
+            )
             
             submitted = st.form_submit_button("Generate Trilingual Note")
             
@@ -232,6 +292,13 @@ def render() -> None:
                         try:
                             pdfs = mm_service.process_merge(template_text, df)
                             st.success(f"Generated {len(pdfs)} documents successfully!")
-                            st.download_button("Download All (Zipped)", data=b"placeholder", file_name="merged_docs.zip")
+                            zip_bytes = mm_service.process_merge_zip(template_text, df)
+                            st.download_button(
+                                "Download All (Zipped)",
+                                data=zip_bytes,
+                                file_name="merged_documents.zip",
+                                mime="application/zip",
+                                use_container_width=True,
+                            )
                         except Exception as e:
                             st.error(f"Merge failed: {str(e)}")

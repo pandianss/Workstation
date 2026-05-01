@@ -11,7 +11,19 @@ from src.interface.streamlit.components.primitives import render_action_bar, ren
 def render() -> None:
     render_action_bar("Admin", ["User access", "Audit dashboard", "Config visibility"])
     if st.session_state.get("role") != "ADMIN":
-        st.warning("Admin access required.")
+        st.warning("Admin access required. Please enter the administrative password to continue.")
+        with st.form("admin_escalation_form"):
+            password = st.text_input("Admin Password", type="password")
+            if st.form_submit_button("Authenticate"):
+                settings = get_app_settings()
+                if password == settings.admin_password:
+                    from src.application.services.session_service import SessionService
+                    SessionService().start_session(st.session_state.get("username", "admin"))
+                    st.session_state["role"] = "ADMIN"
+                    st.success("Access granted. Refreshing...")
+                    st.rerun()
+                else:
+                    st.error("Invalid administrative password.")
         return
 
     from src.application.services.master_service import MasterService

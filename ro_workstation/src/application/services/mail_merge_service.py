@@ -26,3 +26,31 @@ class MailMergeService:
             results.append(pdf_bytes)
             
         return results
+
+    def process_merge_zip(self, template: str, df) -> bytes:
+        """
+        Run process_merge and return all generated PDFs as a single ZIP archive.
+        File names inside the ZIP:
+          - If the DataFrame has a 'NAME' column: 001_<NAME>.pdf
+          - Otherwise: document_001.pdf
+        Returns the ZIP as bytes suitable for st.download_button.
+        """
+        import io
+        import zipfile
+        import re
+
+        pdfs: list[bytes] = self.process_merge(template, df)
+        has_name_col = "NAME" in df.columns
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for idx, pdf_bytes in enumerate(pdfs, start=1):
+                if has_name_col:
+                    raw_name = str(df.iloc[idx - 1].get("NAME", f"document_{idx:03d}"))
+                    safe_name = re.sub(r"[^\w\-]", "_", raw_name)[:40]
+                    filename = f"{idx:03d}_{safe_name}.pdf"
+                else:
+                    filename = f"document_{idx:03d}.pdf"
+                zf.writestr(filename, pdf_bytes)
+
+        return zip_buffer.getvalue()

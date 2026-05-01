@@ -31,11 +31,38 @@ class LLMClient:
             return f"[Ollama Offline Mode] Simulated response for: {prompt[:50]}..."
 
     def generate_json(self, prompt: str, system: str = "") -> dict:
-        raw = self.generate(prompt, f"{system}\nRespond ONLY with valid JSON.")
+        """Generate a response and parse it as JSON. Raises RuntimeError or ValueError on failure."""
+        augmented_system = (
+            f"{system}\n\n"
+            "CRITICAL: Respond ONLY with a valid JSON object. "
+            "Do not include markdown code fences (```), explanations, "
+            "or any text before or after the JSON object. "
+            "Start your response with '{' and end with '}'."
+        )
+        raw = self.generate(prompt, augmented_system)
+
         if "[Ollama Offline Mode]" in raw:
-            return {"status": "offline_stub", "prompt": prompt}
-        clean = raw.replace("```json", "").replace("```", "").strip()
+            raise RuntimeError(
+                "LLM is unavailable — Ollama is not reachable. "
+                "Check that the Ollama service is running on the configured host."
+            )
+
+        clean = raw.strip()
+        # Strip markdown fences if the model added them anyway
+        for fence in ("```json", "```"):
+            clean = clean.replace(fence, "")
+        clean = clean.strip()
+
+        # Extract the outermost JSON object if there is surrounding prose
+        start = clean.find("{")
+        end = clean.rfind("}") + 1
+        if start >= 0 and end > start:
+            clean = clean[start:end]
+
         try:
             return json.loads(clean)
-        except json.JSONDecodeError:
-            return {"error": "Invalid JSON from LLM", "raw": raw}
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"LLM returned invalid JSON: {exc}\n"
+                f"Raw output (first 300 chars): {raw[:300]}"
+            ) from exc

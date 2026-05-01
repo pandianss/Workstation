@@ -29,7 +29,6 @@ def _load_json_file(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@lru_cache(maxsize=1)
 def get_app_settings() -> AppSettings:
     """Load environment-aware settings from data config and env vars."""
     data = _load_json_file(project_path("data", "config.json"))
@@ -66,3 +65,9 @@ def load_yaml_config(name: str) -> dict[str, Any]:
     if not isinstance(loaded, dict):
         raise ValueError(f"Expected mapping config in {path}")
     return loaded
+
+
+def load_yaml(path: str) -> dict[str, Any]:
+    """Compatibility wrapper for load_yaml_config."""
+    name = path.split("/")[-1]
+    return load_yaml_config(name)

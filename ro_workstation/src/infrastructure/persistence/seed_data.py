@@ -63,6 +63,34 @@ def seed_master_data():
                     )
                     session.add(record)
         
+        # 3. Seed Departments
+        depts = [
+            ("FI", "Financial Inclusion"),
+            ("PLAN", "Planning"),
+            ("ARID", "Agri & Rural Infra"),
+            ("HRDD", "Human Resources"),
+            ("GAD", "General Administration"),
+            ("CRMD", "Credit Monitoring"),
+            ("COM", "Compliance"),
+            ("MKT", "Marketing"),
+            ("LAW", "Law"),
+            ("INS", "Inspection"),
+            ("RSK", "Risk Management"),
+            ("SME", "MSME"),
+            ("RET", "Retail"),
+            ("RCC", "Regional Computer Centre")
+        ]
+        for code, name in depts:
+            exists = session.query(MasterRecordModel).filter_by(category="DEPARTMENT", code=code).first()
+            if not exists:
+                record = MasterRecordModel(
+                    category="DEPARTMENT",
+                    code=code,
+                    name_en=name,
+                    is_active=True
+                )
+                session.add(record)
+
         session.commit()
         print("Master data seeded successfully.")
     except Exception as e:

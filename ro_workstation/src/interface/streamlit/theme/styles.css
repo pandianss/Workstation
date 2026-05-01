@@ -4,13 +4,13 @@
 */
 
 :root {
-    --brand-blue: #3b82f6;
-    --brand-blue-dark: #1e3a8a;
+    --brand-blue: #00338d;
+    --brand-blue-dark: #001f54;
     --bg-deep: #0f172a;
     --surface-card: rgba(30, 41, 59, 0.7);
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --grad-primary: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+    --grad-primary: linear-gradient(135deg, #001f54 0%, #00338d 100%);
     --radius-lg: 24px;
     --radius-md: 16px;
     --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
