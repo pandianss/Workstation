@@ -8,7 +8,3 @@ class TaskPriority(str, Enum):
     P4 = "P4"
 
 
-class OperationType(str, Enum):
-    transfer = "Transfer"
-    update = "Update"
-    closure = "Closure"

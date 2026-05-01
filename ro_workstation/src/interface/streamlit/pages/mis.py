@@ -89,32 +89,69 @@ def render() -> None:
                 """, unsafe_allow_html=True)
 
     # Visualization Layer
-    col_chart, col_table = st.columns([1.5, 1])
+    tabs = st.tabs(["📊 Business Trends", "🏦 Advances Portfolio"])
     
-    history = pd.DataFrame(snapshot.history_rows)
-    if not history.empty:
-        history["DATE"] = pd.to_datetime(history["DATE"])
-        fy_start = pd.to_datetime(get_fy_start(selected_date))
-        # Filter for current FY by default
-        history = history[history["DATE"] >= fy_start]
-
-    with col_chart:
+    with tabs[0]:
+        col_chart, col_table = st.columns([1.5, 1])
+        
+        history = pd.DataFrame(snapshot.history_rows)
         if not history.empty:
-            st.markdown("#### 📊 Dynamic Business Trend (Current FY)")
-            # Multi-line chart: Advances vs Deposits
-            trend = history.groupby("DATE", as_index=False)[["Total Advances", "Total Deposits"]].sum()
-            fig = px.line(trend, x="DATE", y=["Total Advances", "Total Deposits"], 
-                         template="plotly_dark", color_discrete_sequence=["#3b82f6", "#10b981"])
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title=None)
-            st.plotly_chart(fig, use_container_width=True)
+            history["DATE"] = pd.to_datetime(history["DATE"])
+            fy_start = pd.to_datetime(get_fy_start(selected_date))
+            # Filter for current FY by default
+            history = history[history["DATE"] >= fy_start]
 
-    with col_table:
-        st.markdown("#### 🏢 Unit Hierarchy")
-        frame = pd.DataFrame(snapshot.rows)
-        if not frame.empty:
-            st.dataframe(frame[["SOL", "Total Advances", "Total Deposits", "NPA %"]].sort_values("Total Advances", ascending=False), 
-                         hide_index=True, use_container_width=True)
+        with col_chart:
+            if not history.empty:
+                st.markdown("#### 📈 Dynamic Business Trend (Current FY)")
+                # Multi-line chart: Advances vs Deposits
+                trend = history.groupby("DATE", as_index=False)[["Total Advances", "Total Deposits"]].sum()
+                fig = px.line(trend, x="DATE", y=["Total Advances", "Total Deposits"], 
+                            template="plotly_dark", color_discrete_sequence=["#3b82f6", "#10b981"])
+                fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title=None)
+                st.plotly_chart(fig, use_container_width=True)
+
+        with col_table:
+            st.markdown("#### 🏢 Unit Hierarchy")
+            frame = pd.DataFrame(snapshot.rows)
+            if not frame.empty:
+                st.dataframe(frame[["SOL", "Total Advances", "Total Deposits", "NPA %"]].sort_values("Total Advances", ascending=False), 
+                             hide_index=True, use_container_width=True)
             
+    with tabs[1]:
+        from src.application.services.advances_service import AdvancesService
+        adv_service = AdvancesService()
+        st.subheader("🏦 Advances Portfolio Risk Analysis")
+        st.info("Upload the standard Advances Excel for 3-level classification and asset quality surveillance.")
+        
+        uploaded_adv = st.file_uploader("Upload Advances File", type=["xlsx", "xls"], key="mis_adv_upload")
+        if uploaded_adv:
+            with st.spinner("Processing portfolio..."):
+                adv_df = adv_service.process_excel(uploaded_adv)
+                stats = adv_service.get_summary_stats(adv_df)
+            
+            # Metric Row
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Accounts", f"{stats['total_count']:,}")
+            m2.metric("Portfolio", f"₹{stats['total_balance_cr']:.2f} Cr")
+            m3.metric("NPA", f"₹{stats.get('risk_summary', {}).get('NPA', {}).get('sum', 0):.2f} Cr")
+            m4.metric("SMA-2", f"₹{stats.get('risk_summary', {}).get('SMA-2', {}).get('sum', 0):.2f} Cr")
+
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown("#### Category Distribution")
+                cat_df = pd.DataFrame(list(stats['by_category'].items()), columns=['Category', 'Balance (Cr)'])
+                st.bar_chart(cat_df.set_index('Category'))
+            
+            with col_b:
+                st.markdown("#### Asset Quality Mix")
+                risk_df = pd.DataFrame([{'Risk': k, 'Balance': v['sum']} for k, v in stats['risk_summary'].items()])
+                st.bar_chart(risk_df.set_index('Risk'))
+
+            st.markdown("#### Sector Breakdown")
+            sector_df = pd.DataFrame([{'Sector': k, 'Count': v['count'], 'Balance (Cr)': v['sum']} for k, v in stats['by_sector'].items()])
+            render_data_table(sector_df, "Sector Analysis", "advances_sector_analysis.xlsx")
+
     # Full Data View
     with st.expander("📋 Detailed MIS Inventory"):
         render_data_table(frame, "Complete Snapshot", f"mis_snapshot_{snapshot.selected_date}.xlsx")

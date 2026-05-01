@@ -4,10 +4,10 @@ import pandas as pd
 import streamlit as st
 
 from src.application.services.guardian_service import GuardianService
-from src.application.services.operation_service import OperationService
 from src.application.services.task_service import TaskService
 from src.application.services.circular_service import CircularService
 from src.application.services.document_service import DocumentService
+from src.application.services.returns_service import ReturnsService
 from src.application.use_cases.global_search import GlobalSearchService
 import datetime
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_filter_panel, render_premium_metrics
@@ -17,7 +17,7 @@ def render() -> None:
     username = st.session_state.get("username", "")
     task_service = TaskService()
     guardian_service = GuardianService()
-    operation_service = OperationService()
+    returns_service = ReturnsService()
     search_service = GlobalSearchService()
 
     summary = task_service.get_task_summary(username)
@@ -29,7 +29,7 @@ def render() -> None:
     render_premium_metrics({
         "Open Tasks": summary["open"],
         "Overdue": summary["overdue"],
-        "Recent Syncs": len(operation_service.get_operation_history(limit=5)),
+        "Pending Returns": len([r for r in returns_service.get_all() if r["status"] == "Pending"]),
         "Guardian Alerts": len(guardian_service.list_followups()),
     })
 
@@ -68,10 +68,19 @@ def render() -> None:
             st.info("No active follow-ups detected.")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("#### ⚙️ Operational Flow")
-        operations = operation_service.get_operation_history(limit=5)
-        if not operations.empty:
-            st.dataframe(operations, hide_index=True, use_container_width=True)
+        st.markdown("#### 📅 Upcoming Returns")
+        returns = [r for r in returns_service.get_all() if r["status"] == "Pending"][:3]
+        if returns:
+            for r in returns:
+                st.markdown(f"""
+                    <div class="glass-panel" style="margin-bottom: 8px; padding: 12px; border-left: 4px solid #10b981;">
+                        <div style="font-size: 0.8rem; color: #94a3b8;">Due: {r.get('due_date', '')}</div>
+                        <div style="font-weight: 600; font-size: 0.9rem;">{r.get('title', 'Return')}</div>
+                        <div style="font-size: 0.7rem; text-transform: uppercase;">{r.get('frequency', '')}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No pending returns.")
 
     # 4. Regional Circulars (Visible to All)
     st.divider()

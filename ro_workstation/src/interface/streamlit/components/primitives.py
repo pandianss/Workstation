@@ -71,7 +71,12 @@ def render_chart_container(frame: pd.DataFrame, x: str, y: str, title: str, kind
         figure = px.pie(frame, names=x, values=y, title=title, hole=0.45)
     else:
         figure = px.line(frame, x=x, y=y, color=color, title=title, markers=True)
-    figure.update_layout(paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor="rgba(255,255,255,0)")
+    figure.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(0,0,0,0)",
+        template="plotly_dark",
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
     st.plotly_chart(figure, use_container_width=True)
 
 

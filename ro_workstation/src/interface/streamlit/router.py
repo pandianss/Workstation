@@ -5,11 +5,11 @@ from importlib import import_module
 
 PAGE_REGISTRY = {
     "Dashboard": "src.interface.streamlit.pages.dashboard",
-    "Analytics": "src.interface.streamlit.pages.mis",
-    "Knowledge Hub": "src.interface.streamlit.pages.knowledge_hub",
-    "Operations": "src.interface.streamlit.pages.operations",
-    "Document Center": "src.interface.streamlit.pages.intelligence",
-    "Survey Reports": "src.interface.streamlit.pages.survey",
+    "Business Analytics": "src.interface.streamlit.pages.mis",
+    "Policy & Product Archive": "src.interface.streamlit.pages.knowledge",
+    "Document Center": "src.interface.streamlit.pages.execution",
+    "Surveys": "src.interface.streamlit.pages.surveys",
+    "Statutory Returns": "src.interface.streamlit.pages.returns",
     "Admin": "src.interface.streamlit.pages.admin",
 }
 

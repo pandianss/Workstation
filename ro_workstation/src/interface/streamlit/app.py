@@ -43,8 +43,15 @@ def _render_header() -> None:
 
 def _render_sidebar() -> str:
     st.sidebar.markdown("### Workspace")
-    st.sidebar.caption("Navigate between analytics, execution, intelligence, and administration.")
-    page = st.sidebar.radio("Navigation", list(PAGE_REGISTRY.keys()), label_visibility="collapsed")
+    st.sidebar.caption("Navigate between analytics, execution, knowledge archive, surveys, and administration.")
+    # Role-based Navigation Filtering
+    allowed_pages = list(PAGE_REGISTRY.keys())
+    if st.session_state.get("role") != "ADMIN":
+        # Remove admin-only pages for standard users
+        admin_only = ["Statutory Returns", "Admin"]
+        allowed_pages = [p for p in allowed_pages if p not in admin_only]
+
+    page = st.sidebar.radio("Navigation", allowed_pages, label_visibility="collapsed")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Session")

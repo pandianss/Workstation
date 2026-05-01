@@ -21,6 +21,7 @@ class DocumentService:
     def __init__(self) -> None:
         self.template_dir = project_path("src", "infrastructure", "templates")
         self.env = Environment(loader=FileSystemLoader(str(self.template_dir)))
+        self.bank_founding_date = datetime.date(1937, 2, 10)
         self.org_data = {}
 
         try:
@@ -144,12 +145,21 @@ class DocumentService:
             except Exception as e:
                 raise RuntimeError(f"PDF generation via Edge failed: {str(e)}")
 
+    def _calculate_bank_years(self) -> int:
+        """Calculates completed years since foundation (10.02.1937)."""
+        today = datetime.date.today()
+        years = today.year - self.bank_founding_date.year
+        if (today.month, today.day) < (self.bank_founding_date.month, self.bank_founding_date.day):
+            years -= 1
+        return years
+
     def _render_template(self, template_name: str, **kwargs) -> str:
         """Render a Jinja2 template with org data and font URL injected."""
         template = self.env.get_template(template_name)
         return template.render(
             org=self.org_data,
             font_base_url=_font_base_url(),
+            bank_years=self._calculate_bank_years(),
             **kwargs,
         )
 
@@ -191,7 +201,7 @@ class DocumentService:
         except: pass
         return {"name": identifier, "name_hi": identifier, "name_ta": identifier, "roll": "N/A", "desig_en": "Authorized Signatory", "desig_hi": "प्राधिकृत हस्ताक्षरकर्ता", "desig_ta": "அங்கீகரிக்கப்பட்ட கையொப்பமிட்டவர்"}
 
-    def generate_office_note(self, department: str, subject: str, intro_text: str, observations: str, recommendations: str, prepared_by: str = "Assistant", ref_no: str | None = None, date: str | None = None, signatories: list[str] | None = None) -> str:
+    def generate_office_note(self, department: str, subject: str, intro_text: str, observations: str, recommendations: str, prepared_by: str = "Assistant", ref_no: str | None = None, date: str | None = None, signatories: list[str] | None = None, is_html: bool = False) -> str:
         initiator_profile = self._resolve_staff_profile(prepared_by)
         sig_profiles = [self._resolve_staff_profile(s) for s in (signatories or [])]
         
@@ -204,15 +214,16 @@ class DocumentService:
             "initiator": initiator_profile,
             "signatory_list": sig_profiles,
             "ref_no": ref_no or "RO/GEN/2026",
-            "date": date or datetime.date.today().strftime("%d.%m.%Y")
+            "date": date or datetime.date.today().strftime("%d.%m.%Y"),
+            "is_html": is_html
         }
         return self._render_template("office_note.html", **context)
 
     def generate_anniversary_note(self, branch_name: str, branch_code: str, years: int, foundation_date: str | None = None, prepared_by: str | None = None) -> str:
         return self._render_template("anniversary_note.html", branch_name=branch_name, branch_code=branch_code, anniversary_year=years, foundation_date=foundation_date, prepared_by=prepared_by or "Regional Office", date=datetime.date.today().strftime("%d-%m-%Y"))
 
-    def generate_pdf_note(self, department: str, subject: str, intro_text: str, observations: str, recommendations: str, prepared_by: str = "Assistant", ref_no: str | None = None, date: str | None = None, signatories: list[str] | None = None) -> bytes:
-        html = self.generate_office_note(department, subject, intro_text, observations, recommendations, prepared_by, ref_no, date, signatories)
+    def generate_pdf_note(self, department: str, subject: str, intro_text: str, observations: str, recommendations: str, prepared_by: str = "Assistant", ref_no: str | None = None, date: str | None = None, signatories: list[str] | None = None, is_html: bool = False) -> bytes:
+        html = self.generate_office_note(department, subject, intro_text, observations, recommendations, prepared_by, ref_no, date, signatories, is_html=is_html)
         return self._html_to_pdf(html)
 
     def generate_pdf_anniversary(self, branch_name: str, branch_code: str, years: int, foundation_date: str | None = None, prepared_by: str | None = None) -> bytes:
@@ -253,37 +264,8 @@ class DocumentService:
             date=formatted_date,
             author=signatory["name"],
             roll=signatory["roll"],
-            sig=signatory
+            sig=signatory,
+            is_html=circular_data.get("is_html", False)
         )
         return self._html_to_pdf(html)
 
-    # ── AI drafting helper (unchanged) ───────────────────────────────────────
-
-    def draft_office_note_content(
-        self,
-        subject: str,
-        department: str,
-        brief: str,
-        llm,
-        dept_system_prompt: str = "",
-    ) -> dict:
-        system = dept_system_prompt or (
-            f"You are an expert AI assistant for the {department} department "
-            "of an Indian Public Sector Bank Regional Office. "
-            "You draft formal office notes in standard PSB format."
-        )
-        prompt = (
-            f"Draft the body of a formal office note using the information below.\n\n"
-            f"DEPARTMENT: {department}\n"
-            f"SUBJECT: {subject}\n"
-            f"BRIEF / KEY POINTS: {brief}\n\n"
-            "Return ONLY a JSON object with exactly these three keys:\n"
-            "{{\n"
-            "  \"introduction\": \"<2–3 sentences: state the purpose and context formally>\",\n"
-            "  \"observations\": \"<key observations as a single string; each point on a new line starting with '• '>\",\n"
-            "  \"recommendations\": \"<1–2 sentences: formal recommendation for approval or action>\"\n"
-            "}}\n\n"
-            "Use formal Indian banking English. "
-            "Do not add any text outside the JSON object."
-        )
-        return llm.generate_json(prompt, system)

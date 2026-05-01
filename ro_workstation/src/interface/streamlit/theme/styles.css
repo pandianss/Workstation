@@ -1,30 +1,36 @@
 /* 
    RO Workstation Custom Components 
-   This file handles layout and complex styling not covered by config.toml 
+   Premium Dark Theme with Brand Gradients
 */
 
 :root {
-    --brand-blue: #00338d;
-    --brand-blue-dark: #001f54;
+    --brand-blue: #21357f;
+    --brand-blue-light: #3b82f6;
     --bg-deep: #0f172a;
+    --bg-gradient: linear-gradient(180deg, #0f172a 0%, #161e31 100%);
     --surface-card: rgba(30, 41, 59, 0.7);
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --grad-primary: linear-gradient(135deg, #001f54 0%, #00338d 100%);
+    --grad-primary: linear-gradient(135deg, #0f172a 0%, #21357f 100%);
     --radius-lg: 24px;
     --radius-md: 16px;
-    --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+/* Force Global Background Gradient */
+.stApp {
+    background: var(--bg-gradient) !important;
 }
 
 /* Hero Section */
 .app-hero {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    background: var(--grad-primary);
     padding: 2.5rem;
     border-radius: var(--radius-lg);
     color: var(--text-primary);
     margin-bottom: 2rem;
     box-shadow: var(--shadow);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .app-hero h1 {
@@ -37,39 +43,11 @@
 }
 
 .app-hero__eyebrow {
-    color: var(--brand-blue);
+    color: var(--brand-blue-light);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-weight: 800;
     font-size: 0.75rem;
-}
-
-/* Premium Card Primitive */
-.stCard {
-    background: var(--surface-card);
-    padding: 1.5rem;
-    border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* Glass Panels */
-.glass-panel {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(8px);
-    padding: 1rem 1.5rem;
-    border-radius: var(--radius-md);
-    border: 1px solid rgba(37, 74, 160, 0.1);
-}
-
-.section-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--brand-blue);
-}
-
-/* Specific UI fix for Sidebar contrast (Native Override) */
-[data-testid="stSidebar"] section {
-    padding-top: 2rem;
 }
 
 /* Premium Glassmorphism */
@@ -87,8 +65,8 @@
 .glass-card:hover {
     background: rgba(30, 41, 59, 0.9);
     transform: translateY(-4px);
-    border-color: var(--brand-blue);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+    border-color: var(--brand-blue-light);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
 }
 
 .metric-value {
@@ -112,7 +90,7 @@
     backdrop-filter: blur(12px);
     padding: 1.25rem 1.5rem;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .section-title {
@@ -121,15 +99,38 @@
     color: var(--text-primary);
 }
 
-.status-pill {
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    display: inline-block;
-    margin-top: 8px;
+/* Specific UI fix for Sidebar contrast */
+[data-testid="stSidebar"] {
+    background-image: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-testid="stSidebar"] section {
+    padding-top: 2rem;
 }
 
 .status-high { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
 .status-med { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
 .status-low { background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.3); }
+
+/* Table Overrides for Dark Mode */
+.stDataFrame div[data-testid="stTable"] {
+    background-color: transparent !important;
+}
+
+/* Tab Overrides */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    background-color: transparent;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 8px 8px 0 0;
+    color: var(--text-secondary);
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: rgba(33, 53, 127, 0.3) !important;
+    color: var(--text-primary) !important;
+}

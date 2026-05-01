@@ -8,10 +8,10 @@
 <div class="letter-body">
     <div class="section-title">SUBJECT: {{ subject | upper }}</div>
 
-    <div style="margin-bottom: 20px; white-space: pre-wrap;">{{ body | safe }}</div>
+    <div class="rich-content {{ 'pre-wrap' if not is_html else '' }}" style="margin-bottom: 20px;">{{ body | safe }}</div>
 
     {% if conclusion %}
-    <div style="margin-bottom: 20px; white-space: pre-wrap;">{{ conclusion | safe }}</div>
+    <div class="rich-content {{ 'pre-wrap' if not is_html else '' }}" style="margin-bottom: 20px;">{{ conclusion | safe }}</div>
     {% endif %}
 </div>
 {% endblock %}

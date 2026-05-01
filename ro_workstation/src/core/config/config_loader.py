@@ -14,8 +14,6 @@ from src.core.paths import project_path
 class AppSettings(BaseModel):
     environment: str = Field(default="development")
     app_title: str = Field(default="RO Workstation")
-    ollama_model: str = Field(default="mistral")
-    ollama_host: str = Field(default="http://localhost:11434")
     offline_mode: bool = Field(default=True)
     admin_password: str = Field(default="admin")
     max_tasks_displayed: int = Field(default=100)
@@ -43,8 +41,6 @@ def get_app_settings() -> AppSettings:
     normalized = {
         "environment": data.get("environment", data.get("env", "development")),
         "app_title": data.get("app_title", "RO Workstation"),
-        "ollama_model": data.get("ollama_model", "mistral"),
-        "ollama_host": data.get("ollama_host", "http://localhost:11434"),
         "offline_mode": str(data.get("offline_mode", "true")).lower() == "true",
         "admin_password": data.get("admin_password", "admin"),
         "max_tasks_displayed": int(data.get("max_tasks_displayed", 100)),

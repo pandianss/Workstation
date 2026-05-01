@@ -9,17 +9,17 @@
     <div class="section-title">SUBJECT: {{ subject }}</div>
     
     <div class="section-title">1. Introduction</div>
-    <div style="margin-bottom: 20px;">
+    <div class="rich-content {{ 'pre-wrap' if not is_html else '' }}" style="margin-bottom: 20px;">
         {{ intro_text | safe }}
     </div>
 
     <div class="section-title">2. Observations</div>
-    <div style="margin-bottom: 20px;">
+    <div class="rich-content {{ 'pre-wrap' if not is_html else '' }}" style="margin-bottom: 20px;">
         {{ observations | safe }}
     </div>
 
     <div class="section-title">3. Recommendations</div>
-    <div style="margin-bottom: 40px;">
+    <div class="rich-content {{ 'pre-wrap' if not is_html else '' }}" style="margin-bottom: 40px;">
         {{ recommendations | safe }}
     </div>
 

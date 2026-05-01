@@ -43,23 +43,23 @@ class MISAnalyticsService:
             shutil.move(str(file_path), str(self.archive_dir / file_path.name))
 
     @st.cache_data(show_spinner=True)
-    def load_frame(self) -> pd.DataFrame:
+    def load_frame(_self) -> pd.DataFrame:
         """Cached data loading and enrichment."""
         # Note: In production, you'd call self._ingest_new_files() elsewhere (e.g. background task)
         # to keep the UI fast. For now, we'll keep it but ensure load_frame is cached properly.
-        frame = self.repository.load_frame()
+        frame = _self.repository.load_frame()
         if frame.empty:
             return frame
         frame.columns = [column.upper().replace("_", " ") for column in frame.columns]
         frame["DATE"] = pd.to_datetime(frame["DATE"])
-        return self._enrich_metrics(frame)
+        return _self._enrich_metrics(frame)
 
     def get_data(self) -> pd.DataFrame:
         """Main entry point for UI, handles ingestion before loading."""
         # Only ingest if there are actually files to ingest
         if list(self.mis_dir.glob("*.xlsx")):
             self._ingest_new_files()
-        return self.get_data()
+        return self.load_frame()
 
     @staticmethod
     def _enrich_metrics(frame: pd.DataFrame) -> pd.DataFrame:
