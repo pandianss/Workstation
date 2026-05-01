@@ -320,3 +320,63 @@ class DocumentService:
             recommendations="We extend our warmest congratulations and best wishes for continued success.",
             signatories=["Regional Manager"]
         )
+    def generate_circular_pdf(self, data: dict) -> bytes:
+        """Generates a high-fidelity official Regional Circular PDF."""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=50, leftMargin=50, topMargin=40, bottomMargin=40)
+        elements = []
+        org = self.org_data
+
+        # 1. Trilingual Header
+        header_data = [
+            [Paragraph(f"<font color='#00338d' size='14'><b>{org.get('bankNameTa', '')}</b></font>", self.styles['Normal']), "", ""],
+            [Paragraph(f"<font color='#00338d' size='12'><b>{org.get('bankNameHi', '')}</b></font>", self.styles['Normal']), "", ""],
+            [Paragraph(f"<font color='#00338d' size='13'><b>{org.get('bankNameEn', '')}</b></font>", self.styles['Normal']), "", ""]
+        ]
+        t_head = Table(header_data, colWidths=[5 * inch, 0, 0])
+        t_head.setStyle(TableStyle([('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
+        elements.append(t_head)
+        elements.append(Spacer(1, 0.1 * inch))
+        elements.append(Table([[""]], colWidths=[7.2 * inch], style=[('LINEBELOW', (0, 0), (-1, -1), 2, colors.HexColor("#00338d"))]))
+        elements.append(Spacer(1, 0.1 * inch))
+
+        # 2. Regional Info
+        info_data = [[
+            Paragraph(f"<b>{org.get('officeNameTa', '')}</b><br/>{org.get('addressTaFormatted', '')}", self.styles['Normal']),
+            Paragraph(f"<b>{org.get('officeNameHi', '')}</b><br/>{org.get('addressHiFormatted', '')}", self.styles['Normal']),
+            Paragraph(f"<b>{org.get('officeNameEn', '')}</b><br/>{org.get('addressEnFormatted', '')}", self.styles['Normal']),
+        ]]
+        t_info = Table(info_data, colWidths=[2.4 * inch, 2.4 * inch, 2.4 * inch])
+        t_info.setStyle(TableStyle([('FONTSIZE', (0, 0), (-1, -1), 8), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('GRID', (0, 0), (-1, -1), 0.2, colors.lightgrey)]))
+        elements.append(t_info)
+        elements.append(Spacer(1, 0.2 * inch))
+
+        # 3. Circular Title & Meta
+        elements.append(Paragraph("REGIONAL CIRCULAR / क्षेत्रीय परिपत्र", self.styles['BankingHeader']))
+        elements.append(Spacer(1, 0.2 * inch))
+        
+        meta_data = [[f"REF NO: {data.get('ref_no') or data.get('number')}", f"DATE: {data.get('date')}"]]
+        t_meta = Table(meta_data, colWidths=[3.6 * inch, 3.6 * inch])
+        t_meta.setStyle(TableStyle([('FONTSIZE', (0, 0), (-1, -1), 10), ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+        elements.append(t_meta)
+        elements.append(Spacer(1, 0.2 * inch))
+
+        # 4. Content
+        elements.append(Paragraph(f"<b>SUBJECT: {data.get('subject', '').upper()}</b>", self.styles['SubjectLine']))
+        elements.append(Spacer(1, 0.1 * inch))
+        
+        body_text = data.get('body', '').replace("\n", "<br/>")
+        elements.append(Paragraph(body_text, self.styles['OfficeNoteBody']))
+        elements.append(Spacer(1, 0.3 * inch))
+        
+        if data.get('conclusion'):
+            elements.append(Paragraph(data.get('conclusion').replace("\n", "<br/>"), self.styles['OfficeNoteBody']))
+            elements.append(Spacer(1, 0.4 * inch))
+
+        # 5. Signatory
+        elements.append(Paragraph("Sd/-", self.styles['Normal']))
+        elements.append(Paragraph(f"<b>({data.get('author', 'Regional Manager')})</b>", self.styles['Normal']))
+        elements.append(Paragraph("Regional Manager", self.styles['Normal']))
+
+        doc.build(elements)
+        return buffer.getvalue()

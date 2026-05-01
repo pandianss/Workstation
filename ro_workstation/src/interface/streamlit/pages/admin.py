@@ -49,5 +49,24 @@ def render() -> None:
 
     with tabs[5]:
         st.json(get_app_settings().model_dump())
+        st.divider()
+        st.markdown("### Advances Scheme Mapping (3-Level)")
+        scheme_path = "data/scheme_config.json"
+        import json
+        import os
+        if os.path.exists(scheme_path):
+            with open(scheme_path, 'r') as f:
+                schemes = json.load(f)
+            
+            new_schemes_str = st.text_area("Edit Scheme Mapping (JSON)", value=json.dumps(schemes, indent=2), height=300)
+            if st.button("Update Scheme Mapping"):
+                try:
+                    json.loads(new_schemes_str)
+                    with open(scheme_path, 'w') as f:
+                        f.write(new_schemes_str)
+                    st.success("Scheme mapping updated successfully.")
+                except Exception as e:
+                    st.error(f"Invalid JSON: {e}")
+        
         st.markdown("### Role Map")
         st.json(load_yaml_config("roles.yaml"))

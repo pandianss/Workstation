@@ -7,6 +7,8 @@ import streamlit as st
 from src.application.services.document_service import DocumentService
 from src.application.services.task_service import TaskService
 from src.application.services.mail_merge_service import MailMergeService
+from src.application.services.advances_service import AdvancesService
+from src.application.services.circular_service import CircularService
 from src.application.use_cases.knowledge.indexing import KnowledgeIndexingService, SUPPORTED_EXTENSIONS
 from src.application.use_cases.knowledge.qa import KnowledgeQaService
 from src.application.use_cases.knowledge.search import KnowledgeSearchService
@@ -36,6 +38,12 @@ def get_doc_service():
 def get_mail_merge_service():
     return MailMergeService()
 
+def get_advances_service():
+    return AdvancesService()
+
+def get_circular_service():
+    return CircularService()
+
 
 def render() -> None:
     task_service = get_task_service()
@@ -44,9 +52,11 @@ def render() -> None:
     search_service = get_search_service()
     doc_service = get_doc_service()
     mm_service = get_mail_merge_service()
+    adv_service = get_advances_service()
+    circ_service = get_circular_service()
 
-    render_action_bar("Document Center", ["Office Notes", "Mail Merge", "Official Correspondence"])
-    tabs = st.tabs(["Task Analytics", "Ask Knowledge Base", "Create Task From Prompt", "Document Center", "Manage Knowledge Base", "Mail Merge"])
+    render_action_bar("Intelligence & Documents", ["Analytics", "Office Notes", "Circulars", "Knowledge"])
+    tabs = st.tabs(["Task Analytics", "Advances Analytics", "Official Circulars", "Ask Knowledge", "Document Generator", "Manage Knowledge", "Mail Merge"])
 
     with tabs[0]:
         tasks = task_service.as_frame(st.session_state.get("username", ""))
@@ -64,7 +74,137 @@ def render() -> None:
                 render_chart_container(priority_counts, "priority", "count", "Priority Distribution", kind="bar", color="priority")
             render_data_table(tasks, "Task analytics table", "task_analytics.xlsx")
 
+        st.divider()
+        st.markdown("#### AI Task Creation")
+        with st.expander("Generate Task from Natural Language", expanded=False):
+            task_prompt = st.text_area("Task Instruction", placeholder="Follow up with branch 1234 on overdue audit compliance by Friday with high priority.")
+            task_dept = st.text_input("Task Department", value=st.session_state.get("user_dept", "ALL"), key="nlp_task_dept")
+            if st.button("Create Task"):
+                if not task_prompt.strip():
+                    st.error("Enter a task instruction.")
+                else:
+                    task = task_service.parse_nlp_task(task_prompt.strip(), st.session_state.get("username", ""), task_dept.strip() or "ALL")
+                    st.success("Task created successfully.")
+                    st.json(task.model_dump(mode="json"))
+
     with tabs[1]:
+        st.subheader("🏦 Advances Portfolio Analytics")
+        st.info("Incorporate logic from high-fidelity banking performance samples. Upload Advances file for 3-level classification and risk analysis.")
+        
+        uploaded_adv = st.file_uploader("Upload Advances Excel", type=["xlsx", "xls"], key="adv_upload")
+        if uploaded_adv:
+            with st.spinner("Processing advanced classification..."):
+                df = adv_service.process_excel(uploaded_adv)
+                stats = adv_service.get_summary_stats(df)
+            
+            # Metric Row
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Accounts", f"{stats['total_count']:,}")
+            m2.metric("Total Balance", f"₹{stats['total_balance_cr']:.2f} Cr")
+            m3.metric("NPA Amount", f"₹{stats.get('risk_summary', {}).get('NPA', {}).get('sum', 0):.2f} Cr")
+            m4.metric("SMA-2 Amount", f"₹{stats.get('risk_summary', {}).get('SMA-2', {}).get('sum', 0):.2f} Cr")
+
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown("#### Portfolio by Category (L1)")
+                cat_df = pd.DataFrame(list(stats['by_category'].items()), columns=['Category', 'Balance (Cr)'])
+                st.bar_chart(cat_df.set_index('Category'))
+            
+            with col_b:
+                st.markdown("#### Asset Quality Mix")
+                risk_df = pd.DataFrame([{'Risk': k, 'Balance': v['sum']} for k, v in stats['risk_summary'].items()])
+                st.bar_chart(risk_df.set_index('Risk'))
+
+            st.markdown("#### Detailed Sector Analysis (L2)")
+            sector_df = pd.DataFrame([{'Sector': k, 'Count': v['count'], 'Balance (Cr)': v['sum']} for k, v in stats['by_sector'].items()])
+            st.dataframe(sector_df, use_container_width=True, hide_index=True)
+            
+            with st.expander("View Raw Enriched Data"):
+                st.dataframe(df, use_container_width=True)
+
+    with tabs[2]:
+        st.subheader("📜 Official Circular Management")
+        st.info("Draft and manage regional circulars with auto-incrementing reference numbers.")
+        
+        with st.form("circular_form"):
+            c1, c2 = st.columns(2)
+            with c1:
+                circ_dept = st.text_input("Department Code", value=st.session_state.get("user_dept", "PLAN"))
+                circ_subject = st.text_input("Circular Subject")
+            with c2:
+                region_code = "DGL" # Default for Dindigul
+                ref_no = circ_service.generate_ref_no(region_code, circ_dept)
+                st.text_input("Reference Number", value=ref_no, disabled=True)
+                issuance_date = st.date_input("Issuance Date", value=datetime.date.today())
+            
+            recipients = st.radio("Recipients", ["All Branches", "Specific Selection"], horizontal=True)
+            circ_body = st.text_area("Circular Body Content", height=300)
+            circ_conclusion = st.text_input("Conclusion / Instructions", value="Please acknowledge receipt and ensure compliance.")
+            
+            circ_submitted = st.form_submit_button("Save Circular Draft")
+            
+            if circ_submitted:
+                circular = {
+                    "ref_no": ref_no,
+                    "subject": circ_subject,
+                    "dept": circ_dept,
+                    "date": issuance_date.isoformat(),
+                    "recipients": recipients,
+                    "body": circ_body,
+                    "conclusion": circ_conclusion,
+                    "author": st.session_state.get("username", "Staff")
+                }
+                circ_service.save_circular(circular)
+                st.success(f"Circular {ref_no} saved successfully!")
+
+        st.markdown("#### Recent Circulars")
+        all_circs = circ_service.get_all()
+        if all_circs:
+            for i, c in enumerate(all_circs):
+                with st.container(border=True):
+                    col_info, col_action = st.columns([4, 1])
+                    with col_info:
+                        # Check if "NEW" (within 7 days)
+                        is_new = False
+                        try:
+                            # Handle both ISO format and YYYY-MM-DD
+                            c_date_str = c.get('date', '')
+                            if 'T' in c_date_str:
+                                p_date = datetime.datetime.fromisoformat(c_date_str)
+                            else:
+                                p_date = datetime.datetime.strptime(c_date_str, "%Y-%m-%d")
+                            
+                            if (datetime.datetime.now() - p_date).days <= 7:
+                                is_new = True
+                        except Exception:
+                            pass
+                        
+                        subject = c.get("subject") or c.get("title") or "Untitled Circular"
+                        ref = c.get("ref_no") or c.get("number") or "N/A"
+                        date_str = c.get("date", "N/A")
+                        
+                        if is_new:
+                            st.markdown(f"### 🆕 {subject}")
+                        else:
+                            st.markdown(f"### {subject}")
+                        
+                        st.markdown(f"**Ref:** `{ref}` | **Date:** {date_str} | **Author:** {c.get('author', 'Regional Office')}")
+                    
+                    with col_action:
+                        st.write("") # Spacer
+                        pdf_bytes = doc_service.generate_circular_pdf(c)
+                        st.download_button(
+                            "📥 Download PDF",
+                            data=pdf_bytes,
+                            file_name=f"Circular_{ref.replace('/', '_')}.pdf",
+                            mime="application/pdf",
+                            key=f"dl_circ_{i}",
+                            use_container_width=True
+                        )
+        else:
+            st.info("No published circulars found.")
+
+    with tabs[3]:
         render_filter_panel("Knowledge workspace", "Ask policy and operational questions against indexed documents.")
         dept = st.text_input("Department Filter", value=st.session_state.get("user_dept", "ALL"))
         question = st.text_area("Question", placeholder="Summarize the latest KYC exception handling guidance.")
@@ -79,18 +219,8 @@ def render() -> None:
                 st.markdown("### Sources")
                 st.write(result["sources"] or "No indexed sources found.")
 
-    with tabs[2]:
-        task_prompt = st.text_area("Task Instruction", placeholder="Follow up with branch 1234 on overdue audit compliance by Friday with high priority.")
-        task_dept = st.text_input("Task Department", value=st.session_state.get("user_dept", "ALL"))
-        if st.button("Create Task From Prompt"):
-            if not task_prompt.strip():
-                st.error("Enter a task instruction before submitting.")
-            else:
-                task = task_service.parse_nlp_task(task_prompt.strip(), st.session_state.get("username", ""), task_dept.strip() or "ALL")
-                st.success("Task created successfully.")
-                st.json(task.model_dump(mode="json"))
 
-    with tabs[3]:
+    with tabs[4]:
         st.subheader("Trilingual Office Note Generator")
         st.info("Generates notes with standard trilingual headers (English, Hindi, Tamil).")
         
@@ -243,7 +373,7 @@ def render() -> None:
                 )
                 st.session_state["preview_note"] = html
 
-    with tabs[4]:
+    with tabs[5]:
         uploaded_files = st.file_uploader(
             "Upload Knowledge Documents",
             type=[ext.lstrip(".") for ext in SUPPORTED_EXTENSIONS],
@@ -261,7 +391,7 @@ def render() -> None:
         if indexed:
             render_data_table(pd.DataFrame(indexed), "Indexed documents", "indexed_documents.xlsx")
 
-    with tabs[5]:
+    with tabs[6]:
         st.subheader("Bulk Mail Merge Engine")
         st.info("💡 **How it works:** Upload an Excel file with columns matching your template variables (e.g., {{NAME}}, {{ADDRESS}}).")
         

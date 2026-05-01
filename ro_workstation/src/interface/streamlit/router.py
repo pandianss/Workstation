@@ -9,6 +9,7 @@ PAGE_REGISTRY = {
     "Knowledge Hub": "src.interface.streamlit.pages.knowledge_hub",
     "Operations": "src.interface.streamlit.pages.operations",
     "Document Center": "src.interface.streamlit.pages.intelligence",
+    "Survey Reports": "src.interface.streamlit.pages.survey",
     "Admin": "src.interface.streamlit.pages.admin",
 }
 

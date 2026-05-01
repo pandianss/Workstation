@@ -6,7 +6,10 @@ import streamlit as st
 from src.application.services.guardian_service import GuardianService
 from src.application.services.operation_service import OperationService
 from src.application.services.task_service import TaskService
+from src.application.services.circular_service import CircularService
+from src.application.services.document_service import DocumentService
 from src.application.use_cases.global_search import GlobalSearchService
+import datetime
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_filter_panel, render_premium_metrics
 
 
@@ -69,3 +72,41 @@ def render() -> None:
         operations = operation_service.get_operation_history(limit=5)
         if not operations.empty:
             st.dataframe(operations, hide_index=True, use_container_width=True)
+
+    # 4. Regional Circulars (Visible to All)
+    st.divider()
+    st.markdown("### 📢 Regional Circulars & Notifications")
+    circ_service = CircularService()
+    doc_service = DocumentService()
+    all_circs = circ_service.get_all()
+    
+    if all_circs:
+        # Show top 3 most recent
+        for i, c in enumerate(all_circs[:3]):
+            with st.container(border=True):
+                c1, c2 = st.columns([4, 1])
+                with c1:
+                    is_new = False
+                    try:
+                        c_date_str = c.get('date', '')
+                        p_date = datetime.datetime.fromisoformat(c_date_str) if 'T' in c_date_str else datetime.datetime.strptime(c_date_str, "%Y-%m-%d")
+                        if (datetime.datetime.now() - p_date).days <= 7:
+                            is_new = True
+                    except: pass
+                    
+                    subject = c.get("subject") or c.get("title") or "Circular"
+                    if is_new:
+                        st.markdown(f"**🆕 {subject}**")
+                    else:
+                        st.markdown(f"**{subject}**")
+                    st.caption(f"{c.get('ref_no') or c.get('number')} | {c.get('date')}")
+                with c2:
+                    pdf_bytes = doc_service.generate_circular_pdf(c)
+                    st.download_button("📥 PDF", data=pdf_bytes, file_name=f"Circular_{i}.pdf", key=f"dash_circ_{i}", use_container_width=True)
+        
+        if len(all_circs) > 3:
+            if st.button("View All Circulars"):
+                st.session_state["page"] = "Document Center" # Or whatever the page name is in router
+                st.rerun()
+    else:
+        st.info("No active circulars to display.")
