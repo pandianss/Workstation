@@ -15,18 +15,59 @@ class AdminService:
             project_path("data", "users.json"),
             [{"username": "admin", "role": "ADMIN", "dept": "ALL"}],
         )
+        from src.infrastructure.persistence.master_repository import MasterRepository
+        self.master_repo = MasterRepository()
 
     def list_users(self) -> list[UserAccess]:
-        return [UserAccess.model_validate(self._normalize_user(record)) for record in self.repo.read()]
+        # Start with explicit users from JSON (Admins, etc.)
+        users = [UserAccess.model_validate(self._normalize_user(record)) for record in self.repo.read()]
+        
+        # Add staff members as default USERS
+        staff_records = self.master_repo.get_by_category("STAFF")
+        user_ids = {u.username for u in users}
+        
+        for staff in staff_records:
+            if staff.code not in user_ids:
+                meta = staff.metadata or {}
+                sol = str(meta.get("sol", "ALL"))
+                users.append(UserAccess(
+                    username=staff.code,
+                    role="USER",
+                    dept=meta.get("dept", "ALL"),
+                    depts=[meta.get("dept", "ALL")],
+                    name=staff.name_en,
+                    designation=meta.get("designation", "Staff"),
+                    grade=meta.get("grade", "N/A"),
+                    assigned_branches=[sol] if sol != "ALL" else []
+                ))
+        return users
 
     def get_users_frame(self) -> pd.DataFrame:
         users = [user.model_dump() for user in self.list_users()]
         return pd.DataFrame(users)
 
     def get_user(self, username: str) -> UserAccess | None:
-        for user in self.list_users():
+        # 1. Check explicit users (Admins take precedence)
+        for user in [UserAccess.model_validate(self._normalize_user(record)) for record in self.repo.read()]:
             if user.username == username:
                 return user
+        
+        # 2. Check Staff Master (By Roll No / Code)
+        staff_records = self.master_repo.get_by_category("STAFF")
+        for staff in staff_records:
+            if staff.code == username:
+                meta = staff.metadata or {}
+                sol = str(meta.get("sol", "ALL"))
+                return UserAccess(
+                    username=staff.code,
+                    role="USER",
+                    dept=meta.get("dept", "ALL"),
+                    depts=[meta.get("dept", "ALL")],
+                    name=staff.name_en,
+                    designation=meta.get("designation", "Staff"),
+                    grade=meta.get("grade", "N/A"),
+                    assigned_branches=[sol] if sol != "ALL" else []
+                )
         return None
 
     def add_user(self, username: str, role: str, dept: str = "ALL") -> UserAccess:

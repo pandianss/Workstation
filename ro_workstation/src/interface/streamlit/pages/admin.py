@@ -14,17 +14,28 @@ def render() -> None:
         st.warning("Admin access required.")
         return
 
+    from src.application.services.master_service import MasterService
+    master_service = MasterService()
     admin_service = AdminService()
     audit_logger = AuditLogger()
-    tabs = st.tabs(["Users", "Audit", "Configuration"])
+    tabs = st.tabs(["Users", "Branches", "Staff", "Departments", "Audit", "Configuration"])
 
     with tabs[0]:
         render_data_table(admin_service.get_users_frame(), "User access", "users.xlsx")
 
     with tabs[1]:
-        render_data_table(audit_logger.to_frame(), "Audit trail", "audit_log.xlsx")
+        render_data_table(master_service.get_branches_frame(), "Branch Registry", "branches.xlsx")
 
     with tabs[2]:
+        render_data_table(master_service.get_staff_frame(), "Staff Registry", "staff.xlsx")
+
+    with tabs[3]:
+        render_data_table(master_service.get_departments_frame(), "Department Registry", "departments.xlsx")
+
+    with tabs[4]:
+        render_data_table(audit_logger.to_frame(), "Audit trail", "audit_log.xlsx")
+
+    with tabs[5]:
         st.json(get_app_settings().model_dump())
         st.markdown("### Role Map")
         st.json(load_yaml_config("roles.yaml"))

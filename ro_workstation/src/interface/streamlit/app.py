@@ -45,6 +45,35 @@ def _render_sidebar() -> str:
     st.sidebar.markdown("### Workspace")
     st.sidebar.caption("Navigate between analytics, execution, intelligence, and administration.")
     page = st.sidebar.radio("Navigation", list(PAGE_REGISTRY.keys()), label_visibility="collapsed")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Session")
+    st.sidebar.caption(f"Logged in as: **{st.session_state.get('display_name', st.session_state.get('username'))}**")
+    
+    if st.sidebar.button("Logout", use_container_width=True):
+        import getpass
+        from src.application.services.session_service import SessionService
+        session_service = SessionService()
+        # End session for both the application user and the OS user
+        session_service.end_session(st.session_state.get("username"))
+        session_service.end_session(getpass.getuser())
+        st.session_state.clear()
+        st.rerun()
+
+    # Role Toggle for Admins
+    if st.session_state.get("original_role") == "ADMIN" or st.session_state.get("role") == "ADMIN":
+        if "original_role" not in st.session_state:
+             st.session_state["original_role"] = st.session_state["role"]
+        
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### View Mode")
+        new_role = st.sidebar.toggle("Admin Mode", value=(st.session_state["role"] == "ADMIN"))
+        target_role = "ADMIN" if new_role else "USER"
+        
+        if target_role != st.session_state["role"]:
+            st.session_state["role"] = target_role
+            st.rerun()
+
     st.sidebar.markdown("---")
     st.sidebar.caption("This interface is backed by the new layered architecture.")
     return page
