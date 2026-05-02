@@ -64,7 +64,7 @@ def render() -> None:
         def staff_format(x):
             if x is None: return "None Assigned"
             s = next((item for item in staff_list if item["Roll No"] == x), None)
-            return f"{x} - {s['Name']}" if s else x
+            return f"{x} - {s['Name (En)']}" if s else x
 
         with col2:
             current_head = current_row['Head']

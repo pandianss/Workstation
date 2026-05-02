@@ -3,5 +3,10 @@
     "username": "admin",
     "role": "ADMIN",
     "dept": "ALL"
+  },
+  {
+    "username": "63039",
+    "role": "ADMIN",
+    "dept": "ALL"
   }
 ]

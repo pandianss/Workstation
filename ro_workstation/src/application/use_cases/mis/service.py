@@ -14,6 +14,8 @@ from src.domain.schemas.mis import MISFilter, MISSnapshot
 from src.infrastructure.persistence.excel_repo import ExcelRepository
 from src.infrastructure.persistence.mis_repository import MISRepository
 from src.infrastructure.persistence.budget_repository import BudgetRepository
+from src.application.services.milestone_service import MilestoneService
+from src.infrastructure.persistence.database import get_db_session
 
 
 class MISAnalyticsService:
@@ -106,6 +108,15 @@ class MISAnalyticsService:
             "NPA": float(selected["NPA"].sum()) if "NPA" in selected.columns else 0.0,
             "CD Ratio": float(selected["CD Ratio"].mean()) if "CD Ratio" in selected.columns else 0.0,
         }
+        
+        # Milestone Record
+        milestones = None
+        milestone_breakthroughs = None
+        with get_db_session() as session:
+            ms = MilestoneService(session)
+            milestones = ms.get_all_at_milestones()
+            milestone_breakthroughs = ms.get_milestone_achievements()
+
         sols = sorted(frame["SOL"].dropna().astype(int).unique().tolist())
         return MISSnapshot(
             selected_date=selected_date,
@@ -114,6 +125,8 @@ class MISAnalyticsService:
             kpis=kpis,
             rows=selected.to_dict("records"),
             history_rows=history.to_dict("records"),
+            milestones=milestones,
+            milestone_breakthroughs=milestone_breakthroughs
         )
 
     def get_performance_metrics(self, selected_date: datetime.date, metric_name: str = "Total Advances", sols: list[int] | None = None) -> dict:
@@ -160,9 +173,9 @@ class MISAnalyticsService:
         next_month_date = get_next_month_end(selected_date)
         next_month_str = next_month_date.strftime("%Y-%m")
 
-        target_curr_month = self.budget_repo.get_target(metric_name, curr_month_str)
-        target_next_month = self.budget_repo.get_target(metric_name, next_month_str)
-        target_fy = self.budget_repo.get_target(metric_name)
+        target_curr_month = self.budget_repo.get_target(metric_name, curr_month_str, sols=sols)
+        target_next_month = self.budget_repo.get_target(metric_name, next_month_str, sols=sols)
+        target_fy = self.budget_repo.get_target(metric_name, sols=sols)
 
         return {
             "current_actual": current_val,

@@ -17,3 +17,6 @@ class MISSnapshot(BaseModel):
     kpis: dict[str, float]
     rows: list[dict]
     history_rows: list[dict]
+    milestones: list[dict] | None = None
+    milestone_breakthroughs: list[dict] | None = None
+

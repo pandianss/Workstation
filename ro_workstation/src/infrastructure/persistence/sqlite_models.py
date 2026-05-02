@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String, Time
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String, Time, func
 from sqlalchemy.orm import declarative_base
 
 
@@ -96,3 +96,46 @@ class MasterRecordModel(Base):
     metadata_json = Column(String)  # Store JSON as string
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class BudgetModel(Base):
+    __tablename__ = "budgets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sol = Column(Integer, nullable=False, index=True)
+    parameter = Column(String, nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    target = Column(Float, nullable=False)
+
+
+class AdvancesRecordModel(Base):
+    __tablename__ = "advances_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    report_dt = Column(Date, nullable=False, index=True)
+    branch_code = Column(Integer, nullable=False, index=True)
+    ac_name = Column(String)
+    foracid = Column(String, index=True)
+    schm_code = Column(String)
+    gl_sub_cd = Column(String)
+    open_dt = Column(Date)
+    limit_cr = Column(Float)
+    balance_cr = Column(Float)
+    risk_category = Column(String, index=True)
+    l1_category = Column(String)
+    l2_sector = Column(String)
+    l3_scheme = Column(String)
+    priority_type = Column(String)
+
+class MilestoneAchievementModel(Base):
+    __tablename__ = 'milestone_achievements'
+    
+    id = Column(Integer, primary_key=True)
+    sol = Column(Integer, nullable=False)
+    branch_name = Column(String(100), nullable=False)
+    parameter = Column(String(50), nullable=False)
+    milestone = Column(String(20), nullable=False)
+    value = Column(Float, nullable=False)
+    previous_value = Column(Float, nullable=False)
+    date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=func.now())

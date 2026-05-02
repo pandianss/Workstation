@@ -27,7 +27,7 @@ def _render_header() -> None:
                     </p>
                 </div>
                 <div style="padding: 5px;">
-                    <img src="data:image/svg+xml;base64,{LOGO_B64}" width="100">
+                    <img src="data:image/svg+xml;base64,{LOGO_B64}" width="50">
                 </div>
             </div>
             <div class="app-badges">
@@ -44,15 +44,33 @@ def _render_header() -> None:
 def _render_sidebar() -> str:
     st.sidebar.markdown("### Workspace")
     st.sidebar.caption("Navigate between analytics, execution, knowledge archive, surveys, and administration.")
-    # Role-based Navigation Filtering
+    # Role-based Navigation Filtering (Modified for Password Override)
     allowed_pages = list(PAGE_REGISTRY.keys())
-    if st.session_state.get("role") != "ADMIN":
-        # Remove admin-only pages for standard users
+    is_admin = st.session_state.get("role") == "ADMIN"
+    
+    if not is_admin:
+        # Check if the user is attempting to access admin pages
         admin_only = ["Statutory Returns", "Admin"]
         allowed_pages = [p for p in allowed_pages if p not in admin_only]
 
     page = st.sidebar.radio("Navigation", allowed_pages, label_visibility="collapsed")
     
+    # Admin Password Override Section
+    if not is_admin:
+        st.sidebar.markdown("---")
+        with st.sidebar.expander("🔐 Unlock Admin Access"):
+            with st.form("admin_upgrade_form"):
+                admin_pass = st.text_input("Admin Password", type="password")
+                if st.form_submit_button("Elevate Privileges", use_container_width=True):
+                    settings = get_app_settings()
+                    if admin_pass == settings.admin_password:
+                        st.session_state["role"] = "ADMIN"
+                        st.session_state["is_elevated"] = True
+                        st.success("Admin access granted!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid password")
+
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Session")
     st.sidebar.caption(f"Logged in as: **{st.session_state.get('display_name', st.session_state.get('username'))}**")
@@ -61,17 +79,13 @@ def _render_sidebar() -> str:
         import getpass
         from src.application.services.session_service import SessionService
         session_service = SessionService()
-        # End session for both the application user and the OS user
         session_service.end_session(st.session_state.get("username"))
         session_service.end_session(getpass.getuser())
         st.session_state.clear()
         st.rerun()
 
     # Role Toggle for Admins
-    if st.session_state.get("original_role") == "ADMIN" or st.session_state.get("role") == "ADMIN":
-        if "original_role" not in st.session_state:
-             st.session_state["original_role"] = st.session_state["role"]
-        
+    if st.session_state.get("original_role") == "ADMIN" or st.session_state.get("is_elevated"):
         st.sidebar.markdown("---")
         st.sidebar.markdown("### View Mode")
         new_role = st.sidebar.toggle("Admin Mode", value=(st.session_state["role"] == "ADMIN"))

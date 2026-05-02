@@ -19,15 +19,31 @@ class AdminService:
         self.master_repo = MasterRepository()
 
     def list_users(self) -> list[UserAccess]:
-        # Start with explicit users from JSON (Admins, etc.)
-        users = [UserAccess.model_validate(self._normalize_user(record)) for record in self.repo.read()]
+        # 1. Get explicit users (Admins, etc.)
+        raw_users = self.repo.read()
+        staff_records = {s.code: s for s in self.master_repo.get_by_category("STAFF")}
         
-        # Add staff members as default USERS
-        staff_records = self.master_repo.get_by_category("STAFF")
+        users = []
+        for record in raw_users:
+            username = str(record.get("username"))
+            norm = self._normalize_user(record)
+            
+            # Enrich from Staff Master if available
+            staff = staff_records.get(username)
+            if staff:
+                meta = staff.metadata or {}
+                norm["name"] = staff.name_en
+                norm["designation"] = meta.get("designation", "Staff")
+                norm["grade"] = meta.get("grade", "N/A")
+                sol = str(meta.get("sol", "ALL"))
+                norm["assigned_branches"] = [sol] if sol != "ALL" else []
+
+            users.append(UserAccess.model_validate(norm))
+        
+        # 2. Add remaining staff members as default USERS
         user_ids = {u.username for u in users}
-        
-        for staff in staff_records:
-            if staff.code not in user_ids:
+        for code, staff in staff_records.items():
+            if code not in user_ids:
                 meta = staff.metadata or {}
                 sol = str(meta.get("sol", "ALL"))
                 users.append(UserAccess(
@@ -48,17 +64,26 @@ class AdminService:
 
     def get_user(self, username: str) -> UserAccess | None:
         # 1. Check explicit users (Admins take precedence)
-        for user in [UserAccess.model_validate(self._normalize_user(record)) for record in self.repo.read()]:
-            if user.username == username:
-                return user
+        users_json = self.repo.read()
+        explicit_user = next((u for u in users_json if u.get("username") == username), None)
         
-        # 2. Check Staff Master (By Roll No / Code)
+        # 2. Check Staff Master for enrichment
         staff_records = self.master_repo.get_by_category("STAFF")
-        for staff in staff_records:
-            if staff.code == username:
+        staff = next((s for s in staff_records if s.code == username), None)
+        
+        if explicit_user:
+            norm = self._normalize_user(explicit_user)
+            if staff:
                 meta = staff.metadata or {}
-                sol = str(meta.get("sol", "ALL"))
-                return UserAccess(
+                norm["name"] = staff.name_en
+                norm["designation"] = meta.get("designation", "Staff")
+                norm["grade"] = meta.get("grade", "N/A")
+            return UserAccess.model_validate(norm)
+        
+        if staff:
+            meta = staff.metadata or {}
+            sol = str(meta.get("sol", "ALL"))
+            return UserAccess(
                     username=staff.code,
                     role="USER",
                     dept=meta.get("dept", "ALL"),

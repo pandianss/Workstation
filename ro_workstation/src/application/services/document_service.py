@@ -22,6 +22,7 @@ class DocumentService:
         self.template_dir = project_path("src", "infrastructure", "templates")
         self.env = Environment(loader=FileSystemLoader(str(self.template_dir)))
         self.bank_founding_date = datetime.date(1937, 2, 10)
+        self.assets_dir = project_path("src", "assets")
         self.org_data = {}
 
         try:
@@ -46,9 +47,9 @@ class DocumentService:
                     "officeNameEn": ro_record.name_en or "REGIONAL OFFICE, DINDIGUL",
                     "officeNameHi": ro_record.name_hi or "क्षेत्रीय कार्यालय, डिंडिगुल",
                     "officeNameTa": ro_record.name_local or "மண்டல அலுவலகம், திண்டுக்கல்",
-                    "addressEnFormatted": format_address(meta.get('address') or 'Pensioner Street, Dindigul', "Pensioner Street"),
-                    "addressHiFormatted": format_address(meta.get('addressHi') or 'पेंशनर स्ट्रीट, डिंडिगुल', "पेंशनर स्ट्रीट"),
-                    "addressTaFormatted": format_address(meta.get('addressTa') or 'பென்ஷனர் தெரு, திண்டுக்கல்', "பென்ஷனர் தெரு"),
+                    "addressEnFormatted": format_address(meta.get('address') or '80 Feet Road, Near Spencer Compound, Dindigul - 624001', "Dindigul"),
+                    "addressHiFormatted": format_address(meta.get('addressHi') or '80 फीट रोड, स्पेंसर कंपाउंड के पास, डिंडीगुल - 624001', "डिंडीगुल"),
+                    "addressTaFormatted": format_address(meta.get('addressTa') or '80 அடி சாலை, ஸ்பென்சர் காம்பவுண்ட் அருகில், திண்டுக்கல் - 624001', "திண்டுக்கல்"),
                     "phone": meta.get('phone', '0451-2422242'),
                     "email": meta.get('email', 'rodindigul@iob.in'),
                     "website": "www.iob.in",
@@ -64,9 +65,9 @@ class DocumentService:
                 with org_path.open("r", encoding="utf-8") as f:
                     self.org_data = json.load(f)
 
-        # Load Logo as Base64 (src/assets/doc.svg) - SSOT for Branding
+        # Load Logo as Base64 (src/assets/doc_min.svg) - SSOT for Branding
         import base64
-        logo_path = project_path("src", "assets", "doc.svg")
+        logo_path = project_path("src", "assets", "doc_min.svg")
         if logo_path.exists():
             with logo_path.open("rb") as f:
                 logo_b64 = base64.b64encode(f.read()).decode('utf-8')
@@ -156,6 +157,12 @@ class DocumentService:
     def _render_template(self, template_name: str, **kwargs) -> str:
         """Render a Jinja2 template with org data and font URL injected."""
         template = self.env.get_template(template_name)
+        
+        # Inject Beti Logo if available
+        beti_logo = self.assets_dir / "beti.png"
+        if beti_logo.exists():
+            self.org_data["betiLogo"] = f"file:///{beti_logo.as_posix()}"
+        
         return template.render(
             org=self.org_data,
             font_base_url=_font_base_url(),
@@ -266,6 +273,46 @@ class DocumentService:
             roll=signatory["roll"],
             sig=signatory,
             is_html=circular_data.get("is_html", False)
+        )
+        return self._html_to_pdf(html)
+
+    def generate_milestones_pdf(self, milestone_data: list, summary_data: list, selected_date: str) -> bytes:
+        """Generates a PDF report for business milestones."""
+        # milestone_data is a list of {"branch_name", "parameter", "value", "milestone"}
+        # Sort by value descending
+        achievements = sorted(milestone_data, key=lambda x: x["value"], reverse=True)[:15]
+        
+        html = self._render_template(
+            "milestones_report.html",
+            summary=summary_data,
+            achievements=achievements,
+            selected_date=selected_date,
+            ref_no="RO/MIS/MIL/2026",
+            date=datetime.date.today().strftime("%d.%m.%Y"),
+            prepared_by=self.org_data.get("officeNameEn", "Regional Office")
+        )
+        return self._html_to_pdf(html)
+
+    def generate_appreciation_letter(self, achievement: dict) -> bytes:
+        """Generates an appreciation letter for a specific breakthrough."""
+        import datetime
+        month_year = achievement["date"].strftime("%B %Y")
+        
+        # Resolve Region Head as Signatory
+        head_roll = self.org_data.get("headRoll") or "63039"
+        signatory = self._resolve_staff_profile(head_roll)
+        
+        html = self._render_template(
+            "appreciation_letter.html",
+            branch_name=achievement["branch_name"],
+            sol=achievement["sol"],
+            parameter=achievement["parameter"],
+            milestone=achievement["milestone"],
+            month_year=month_year,
+            achievement_date=achievement["date"].strftime("%d.%m.%Y"),
+            signatory=signatory,
+            ref_no=f"RO/DGL/APPR/{achievement['sol']}/2026",
+            date=datetime.date.today().strftime("%d.%m.%Y")
         )
         return self._html_to_pdf(html)
 
