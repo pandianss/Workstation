@@ -10,6 +10,7 @@ from src.domain.schemas.mis import MISFilter
 from src.infrastructure.persistence.database import get_db_session
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_premium_metrics, render_chart_container
 from src.application.services.milestone_service import MilestoneService
+from src.application.services.performance_letter_service import PerformanceLetterService
 
 def render() -> None:
     service = MISAnalyticsService()
@@ -400,6 +401,45 @@ def render() -> None:
 
         else:
             st.warning("Milestone data not available.")
+
+        st.divider()
+        st.subheader("📬 Performance Communication Center")
+        st.caption("Generate mass appreciation and explanation letters based on budget performance.")
+        
+        perf_service = PerformanceLetterService()
+        performance_data = perf_service.get_branch_performance(snapshot.selected_date)
+        
+        if performance_data:
+            with st.expander("📝 Review Monthly Performance Status", expanded=False):
+                for p in performance_data:
+                    status_col, name_col, details_col = st.columns([1, 2, 4])
+                    with status_col:
+                        if p["achievements"] and not p["declines"]:
+                            st.success("EXCELLENT")
+                        elif p["achievements"] and p["declines"]:
+                            st.warning("MIXED")
+                        else:
+                            st.error("ACTION REQ")
+                    with name_col:
+                        st.markdown(f"**{p['branch_name']}** ({p['sol']})")
+                    with details_col:
+                        ach_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in p["achievements"]]
+                        dec_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in p["declines"]]
+                        if ach_tags: st.markdown(f"✅ {', '.join(ach_tags)}")
+                        if dec_tags: st.markdown(f"⚠️ {', '.join(dec_tags)}")
+
+            if st.button("📦 Generate All Performance Letters (ZIP)", use_container_width=True):
+                with st.spinner("Preparing bulk letters..."):
+                    zip_data = perf_service.generate_letters_zip(performance_data)
+                    st.download_button(
+                        "📥 Download Performance Kit",
+                        data=zip_data,
+                        file_name=f"Performance_Letters_{snapshot.selected_date}.zip",
+                        mime="application/zip",
+                        use_container_width=True
+                    )
+        else:
+            st.info("No performance data available for this date.")
 
     # Full Data View
     with st.expander("📋 Detailed MIS Inventory"):

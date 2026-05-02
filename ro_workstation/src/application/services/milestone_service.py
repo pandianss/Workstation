@@ -37,6 +37,9 @@ class MilestoneService:
             for r in prev_recs:
                 vals = self._calculate_parameters(r)
                 baseline_levels[r.sol] = {p: self._get_milestone_level(vals.get(p, 0.0)) for p in self.PARAMETERS}
+                # Also store actual values for previous_value reporting
+                for p in self.PARAMETERS:
+                    baseline_levels[r.sol][p + "_VAL"] = vals.get(p, 0.0)
 
         # Find all reporting dates in the current month, sorted ascending
         curr_month_dates = self.session.query(MISRecordModel.date)\
@@ -68,7 +71,7 @@ class MilestoneService:
                                 "branch_name": branch_map.get(str(r.sol), f"SOL {r.sol}"),
                                 "parameter": param,
                                 "value": curr_val,
-                                "previous_value": 0.0, # Not strictly needed for poster
+                                "previous_value": curr_val - (curr_val % 50) if prev_level == 0 else baseline_levels.get(r.sol, {}).get(param + "_VAL", 0.0), 
                                 "milestone": f"{curr_level}Cr+",
                                 "date": d_date
                             })

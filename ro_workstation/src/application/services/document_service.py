@@ -316,3 +316,39 @@ class DocumentService:
         )
         return self._html_to_pdf(html)
 
+    def generate_performance_appreciation(self, performance: dict) -> bytes:
+        """Generates a letter for budget target achievements."""
+        month_year = performance["date"].strftime("%B %Y")
+        head_roll = self.org_data.get("headRoll") or "63039"
+        signatory = self._resolve_staff_profile(head_roll)
+        
+        html = self._render_template(
+            "performance_appreciation.html",
+            branch_name=performance["branch_name"],
+            sol=performance["sol"],
+            achievements=performance["achievements"],
+            month_year=month_year,
+            signatory=signatory,
+            ref_no=f"RO/DGL/MIS/ACH/{performance['sol']}/2026",
+            date=datetime.date.today().strftime("%d.%m.%Y")
+        )
+        return self._html_to_pdf(html)
+
+    def generate_explanation_letter(self, performance: dict) -> bytes:
+        """Generates an explanation letter for budget shortfalls."""
+        month_year = performance["date"].strftime("%B %Y")
+        head_roll = self.org_data.get("headRoll") or "63039"
+        signatory = self._resolve_staff_profile(head_roll)
+        
+        html = self._render_template(
+            "explanation_letter.html",
+            branch_name=performance["branch_name"],
+            sol=performance["sol"],
+            declines=performance["declines"],
+            month_year=month_year,
+            signatory=signatory,
+            ref_no=f"RO/DGL/MIS/EXP/{performance['sol']}/2026",
+            date=datetime.date.today().strftime("%d.%m.%Y")
+        )
+        return self._html_to_pdf(html)
+
