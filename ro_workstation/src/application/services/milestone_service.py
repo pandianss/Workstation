@@ -2,7 +2,11 @@ from __future__ import annotations
 from typing import Dict, List, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from src.infrastructure.persistence.sqlite_models import MISRecordModel, MasterRecordModel
+from src.infrastructure.persistence.database import engine
+from src.infrastructure.persistence.sqlite_models import Base, MISRecordModel, MasterRecordModel
+
+# Ensure tables are created
+Base.metadata.create_all(engine)
 
 class MilestoneService:
     """Service to calculate business milestones across branches."""
@@ -71,9 +75,10 @@ class MilestoneService:
                                 "branch_name": branch_map.get(str(r.sol), f"SOL {r.sol}"),
                                 "parameter": param,
                                 "value": curr_val,
-                                "previous_value": curr_val - (curr_val % 50) if prev_level == 0 else baseline_levels.get(r.sol, {}).get(param + "_VAL", 0.0), 
+                                "previous_value": baseline_levels.get(r.sol, {}).get(param + "_VAL", 0.0), 
                                 "milestone": f"{curr_level}Cr+",
-                                "date": d_date
+                                "date": d_date,
+                                "prev_date": prev_date
                             })
                             recognized.add(key)
         return achievements

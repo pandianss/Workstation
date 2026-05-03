@@ -357,10 +357,13 @@ def render() -> None:
                 b_df = pd.DataFrame(snapshot.milestone_breakthroughs)
                 cols_to_show = ["branch_name", "parameter", "previous_value", "value", "milestone"]
                 b_display = b_df[cols_to_show].copy()
-                b_display.columns = ["Branch", "Parameter", "Prev Val (Cr)", "Curr Val (Cr)", "New Milestone"]
-                # Rounding
-                for col in ["Prev Val (Cr)", "Curr Val (Cr)"]:
-                    b_display[col] = b_display[col].map(lambda x: f"{x:.2f}")
+                # Rounding before renaming for stability
+                b_display["previous_value"] = b_display["previous_value"].map(lambda x: f"{x:.2f}")
+                b_display["value"] = b_display["value"].map(lambda x: f"{x:.2f}")
+
+                p_dt = b_df["prev_date"].iloc[0].strftime("%d-%b") if "prev_date" in b_df.columns and not b_df.empty else "Prev"
+                c_dt = b_df["date"].iloc[0].strftime("%d-%b") if "date" in b_df.columns and not b_df.empty else "Curr"
+                b_display.columns = ["Branch", "Parameter", f"Value {p_dt} (Cr)", f"Value {c_dt} (Cr)", "New Milestone"]
                 
                 st.table(b_display)
         

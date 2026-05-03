@@ -56,11 +56,13 @@ class MISAnalyticsService:
         frame["DATE"] = pd.to_datetime(frame["DATE"])
         return _self._enrich_metrics(frame)
 
-    def get_data(self) -> pd.DataFrame:
+    def get_data(self, force_ingest: bool = False) -> pd.DataFrame:
         """Main entry point for UI, handles ingestion before loading."""
-        # Only ingest if there are actually files to ingest
-        if list(self.mis_dir.glob("*.xlsx")):
-            self._ingest_new_files()
+        # Only check filesystem if explicitly requested or on first load of the session
+        if force_ingest or st.session_state.get("mis_needs_ingest", True):
+            if any(self.mis_dir.glob("*.xlsx")):
+                self._ingest_new_files()
+            st.session_state["mis_needs_ingest"] = False
         return self.load_frame()
 
     @staticmethod

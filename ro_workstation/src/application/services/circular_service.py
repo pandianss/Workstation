@@ -33,6 +33,15 @@ class CircularService:
 
     def save_circular(self, circular: Dict):
         circulars = self._load_data()
+        
+        # Prevent exact duplicates within the same day/dept
+        for c in circulars:
+            if (c.get('subject') == circular.get('subject') and 
+                c.get('date') == circular.get('date') and 
+                c.get('dept') == circular.get('dept')):
+                # Already exists, just return it
+                return c
+
         if 'id' not in circular:
             # Use ref_no or number as id if available, else generate
             circular['id'] = circular.get('ref_no') or circular.get('number') or datetime.now().strftime("%Y%m%d%H%M%S")
@@ -40,7 +49,7 @@ class CircularService:
         if 'created_at' not in circular:
             circular['created_at'] = datetime.now().isoformat()
         
-        # Check if updating
+        # Check if updating by ID
         updated = False
         for i, c in enumerate(circulars):
             if isinstance(c, dict) and c.get('id') == circular['id']:

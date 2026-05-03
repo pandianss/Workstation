@@ -13,12 +13,17 @@ import datetime
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_filter_panel, render_premium_metrics
 
 
+from src.interface.streamlit.state.services import (
+    get_task_service, get_guardian_service, get_returns_service, 
+    get_search_service, get_circular_service, get_doc_service
+)
+
 def render() -> None:
     username = st.session_state.get("username", "")
-    task_service = TaskService()
-    guardian_service = GuardianService()
-    returns_service = ReturnsService()
-    search_service = GlobalSearchService()
+    task_service = get_task_service()
+    guardian_service = get_guardian_service()
+    returns_service = get_returns_service()
+    search_service = get_search_service()
 
     summary = task_service.get_task_summary(username)
     
@@ -110,8 +115,13 @@ def render() -> None:
                         st.markdown(f"**{subject}**")
                     st.caption(f"{c.get('ref_no') or c.get('number')} | {c.get('date')}")
                 with c2:
-                    pdf_bytes = doc_service.generate_circular_pdf(c)
-                    st.download_button("📥 PDF", data=pdf_bytes, file_name=f"Circular_{i}.pdf", key=f"dash_circ_{i}", use_container_width=True)
+                    if st.button("📄 Prepare", key=f"dash_prep_{i}", use_container_width=True):
+                        with st.spinner("Generating..."):
+                            pdf_bytes = doc_service.generate_circular_pdf(c)
+                            st.session_state[f"dash_pdf_{i}"] = pdf_bytes
+                    
+                    if f"dash_pdf_{i}" in st.session_state:
+                        st.download_button("📥 Download", data=st.session_state[f"dash_pdf_{i}"], file_name=f"Circular_{i}.pdf", key=f"dash_dl_{i}", use_container_width=True)
         
         if len(all_circs) > 3:
             if st.button("View All Circulars"):

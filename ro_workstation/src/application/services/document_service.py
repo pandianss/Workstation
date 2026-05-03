@@ -21,6 +21,24 @@ class DocumentService:
     def __init__(self) -> None:
         self.template_dir = project_path("src", "infrastructure", "templates")
         self.env = Environment(loader=FileSystemLoader(str(self.template_dir)))
+        
+        # Add custom filters for INR formatting
+        def format_inr(value):
+            try:
+                if value is None: return "0.00"
+                return "{:,.2f}".format(float(value))
+            except:
+                return str(value)
+        
+        def format_inr_k(value):
+            try:
+                if value is None: return "0"
+                return "{:,.0f}".format(float(value))
+            except:
+                return str(value)
+
+        self.env.filters['format_inr'] = format_inr
+        self.env.filters['format_inr_k'] = format_inr_k
         self.bank_founding_date = datetime.date(1937, 2, 10)
         self.assets_dir = project_path("src", "assets")
         self.org_data = {}
@@ -123,26 +141,45 @@ class DocumentService:
                 "--allow-file-access-from-files",
                 f"--print-to-pdf={pdf_file}",
                 "--no-pdf-header-footer",
+                "--no-first-run",
+                "--no-default-browser-check",
                 html_file
             ]
             
+            # Windows-specific: Hide the console window
+            startupinfo = None
+            if os.name == 'nt':
+                import subprocess as sp
+                startupinfo = sp.STARTUPINFO()
+                startupinfo.dwFlags |= sp.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = sp.SW_HIDE
+
             try:
                 # Run the command with an increased timeout
-                subprocess.run(cmd, check=True, timeout=60, capture_output=True)
+                process = subprocess.run(
+                    cmd, 
+                    check=True, 
+                    timeout=45, 
+                    capture_output=True,
+                    startupinfo=startupinfo
+                )
                 
                 # Wait a tiny bit for file to be released/written
-                for _ in range(20):
-                    if os.path.exists(pdf_file) and os.path.getsize(pdf_file) > 100:
+                for _ in range(30):
+                    if os.path.exists(pdf_file) and os.path.getsize(pdf_file) > 500:
                         break
                     time.sleep(0.5)
                 
                 if not os.path.exists(pdf_file):
-                    raise FileNotFoundError("Edge finished but output PDF was not created.")
+                    raise FileNotFoundError(f"Edge finished but output PDF was not created. Error: {process.stderr.decode(errors='replace')}")
                 
                 with open(pdf_file, "rb") as f:
                     return f.read()
             except subprocess.TimeoutExpired:
-                raise RuntimeError("PDF generation timed out. Please try again. Edge may be hanging in the background.")
+                # Attempt to kill any orphaned Edge processes
+                if os.name == 'nt':
+                    os.system("taskkill /f /im msedge.exe /fi \"status eq running\" >nul 2>&1")
+                raise RuntimeError("PDF generation timed out. Please try again. Background processes have been cleared.")
             except Exception as e:
                 raise RuntimeError(f"PDF generation via Edge failed: {str(e)}")
 
@@ -167,6 +204,7 @@ class DocumentService:
             org=self.org_data,
             font_base_url=_font_base_url(),
             bank_years=self._calculate_bank_years(),
+            datetime=datetime,
             **kwargs,
         )
 
@@ -349,6 +387,101 @@ class DocumentService:
             signatory=signatory,
             ref_no=f"RO/DGL/MIS/EXP/{performance['sol']}/2026",
             date=datetime.date.today().strftime("%d.%m.%Y")
+        )
+        return self._html_to_pdf(html)
+
+    def generate_branch_visit_report(self, month: int, year: int, visits: list) -> bytes:
+        """Generates a consolidated monthly branch visit return."""
+        month_name = datetime.date(year, month, 1).strftime("%B").upper()
+        html = self._render_template(
+            "branch_visit_report.html",
+            month_name=month_name,
+            year=year,
+            visits=visits
+        )
+        return self._html_to_pdf(html)
+
+    def generate_visit_observation_letter(self, visit: dict | Any) -> bytes:
+        """Generates an individual observation letter to a branch manager."""
+        # Handle both dict and SQLAlchemy model
+        if hasattr(visit, "__table__"):
+            v_data = {
+                "branch_name": visit.branch_name,
+                "sol": visit.sol,
+                "visitor_name": visit.visitor_name,
+                "visit_date": visit.visit_date,
+                "observations": visit.observations,
+                "advice": visit.advice_to_branch
+            }
+        else:
+            v_data = visit
+
+        head_roll = self.org_data.get("headRoll") or "63039"
+        signatory = self._resolve_staff_profile(head_roll)
+        
+        html = self._render_template(
+            "visit_observation_letter.html",
+            branch_name=v_data["branch_name"],
+            sol=v_data["sol"],
+            visitor_name=v_data["visitor_name"],
+            visit_date=v_data["visit_date"],
+            observations=v_data["observations"],
+            advice=v_data["advice"],
+            signatory=signatory
+        )
+        return self._html_to_pdf(html)
+
+    def generate_dicgc_return(self, data: dict) -> bytes:
+        """Generates the DICGC Certificate of Confirmation."""
+        head_roll = self.org_data.get("headRoll") or "63039"
+        signatory = self._resolve_staff_profile(head_roll)
+        
+        html = self._render_template(
+            "dicgc_return.html",
+            as_on_date=data["as_on_date"],
+            central_govt_amt=data["central_govt_amt"],
+            state_govt_amt=data["state_govt_amt"],
+            inter_bank_amt=data["inter_bank_amt"],
+            ro_name=self.org_data.get("officeNameEn", "DINDIGUL"),
+            ro_location=self.org_data.get("officeNameEn", "DINDIGUL").split(",")[-1].strip(),
+            signatory=signatory
+        )
+        return self._html_to_pdf(html)
+
+    def generate_dicgc_form_di01(self, data: dict) -> bytes:
+        """Generates the official DICGC Form DI-01."""
+        html = self._render_template(
+            "dicgc_form_di01.html",
+            **data
+        )
+        return self._html_to_pdf(html)
+
+    def generate_wizard_pdf(self, wizard_type: str, data: dict, submitted_by: str, subject: str = None, ref: str = None) -> bytes:
+        """Generates a generic report for any wizard submission."""
+        title_map = {
+            "broken_interest": "Broken Period Interest Calculation",
+            "rbi_proforma": "RBI Proforma Reporting",
+            "expense_approval": "Administrative Expense Approval",
+            "gl_activation": "GL Head Activation Request",
+            "high_value_dd": "High Value DD Reporting",
+            "micr_request": "MICR/Cheque Book Request",
+            "proforma_branch": "Proforma Branch Code Capture",
+            "reversal_charges": "Reversal of Charges / Waiver Request"
+        }
+        
+        # Use specialized template for broken interest if preferred, else generic
+        template = "wizard_generic.html"
+        if wizard_type == "broken_interest":
+            template = "wizard_broken_interest.html"
+            
+        html = self._render_template(
+            template,
+            title=subject or title_map.get(wizard_type, wizard_type.replace('_', ' ').title()),
+            data=data,
+            submitted_by=submitted_by,
+            reference_no=ref,
+            date=datetime.date.today().strftime("%d.%m.%Y"),
+            **data # Unpack data for specialized templates
         )
         return self._html_to_pdf(html)
 

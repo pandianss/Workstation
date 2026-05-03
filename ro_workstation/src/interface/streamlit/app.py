@@ -42,18 +42,33 @@ def _render_header() -> None:
 
 
 def _render_sidebar() -> str:
-    st.sidebar.markdown("### Workspace")
-    st.sidebar.caption("Navigate between analytics, execution, knowledge archive, surveys, and administration.")
-    # Role-based Navigation Filtering (Modified for Password Override)
-    allowed_pages = list(PAGE_REGISTRY.keys())
-    is_admin = st.session_state.get("role") == "ADMIN"
+    st.sidebar.markdown("### 🛠️ Workstation Hub")
     
-    if not is_admin:
-        # Check if the user is attempting to access admin pages
-        admin_only = ["Statutory Returns", "Admin"]
-        allowed_pages = [p for p in allowed_pages if p not in admin_only]
+    # Define Groups for logical organization
+    navigation_structure = {
+        "📊 Insights": ["Dashboard", "Business Analytics"],
+        "🏗️ Operations": ["Operations & Returns", "Document Center", "Coordination Center"],
+        "⚖️ Compliance": ["Returns & Compliance", "DICGC Return", "Branch Visits"],
+        "📚 Resources": ["Knowledge Base", "Surveys & Feedback"],
+        "🌐 Portals": ["Branch Portal", "Guest Portal"],
+        "⚙️ Management": ["Admin"]
+    }
 
-    page = st.sidebar.radio("Navigation", allowed_pages, label_visibility="collapsed")
+    is_admin = st.session_state.get("role") == "ADMIN"
+    all_allowed_labels = []
+    label_to_page = {}
+    
+    for group, pages in navigation_structure.items():
+        filtered_pages = pages if is_admin else [p for p in pages if p != "Admin"]
+        for p in filtered_pages:
+            icon = group.split()[0]
+            label = f"{icon} {p}"
+            all_allowed_labels.append(label)
+            label_to_page[label] = p
+
+    # Navigation Radio with Icons
+    selected_label = st.sidebar.radio("Navigation", all_allowed_labels, label_visibility="collapsed")
+    page = label_to_page[selected_label]
     
     # Admin Password Override Section
     if not is_admin:
