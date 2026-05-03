@@ -46,7 +46,7 @@ def _render_sidebar() -> str:
     
     # Define Groups for logical organization
     navigation_structure = {
-        "📊 Insights": ["Dashboard", "Business Analytics"],
+        "📊 Insights": ["Dashboard", "Business Analytics", "Campaign Management"],
         "🏗️ Operations": ["Operations & Returns", "Document Center", "Coordination Center"],
         "⚖️ Compliance": ["Returns & Compliance", "DICGC Return", "Branch Visits"],
         "📚 Resources": ["Knowledge Base", "Surveys & Feedback"],

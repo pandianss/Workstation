@@ -10,6 +10,7 @@ PAGE_REGISTRY = {
     "Business Analytics": "src.interface.streamlit.pages.mis",
     "Returns & Compliance": "src.interface.streamlit.pages.returns",
     "Coordination Center": "src.interface.streamlit.pages.coordination",
+    "Campaign Management": "src.interface.streamlit.pages.campaigns",
     "DICGC Return": "src.interface.streamlit.pages.dicgc",
     "Knowledge Base": "src.interface.streamlit.pages.knowledge",
     "Branch Visits": "src.interface.streamlit.pages.visits",

@@ -1,31 +1,48 @@
 from __future__ import annotations
-
-import datetime
-from typing import Any
+import json
+from pathlib import Path
+from typing import List, Dict, Any
 from src.core.paths import project_path
-from src.infrastructure.persistence.json_repo import JsonRepository
-
 
 class CampaignService:
-    def __init__(self) -> None:
-        self.repo = JsonRepository(
-            project_path("data", "campaigns.json"),
-            {"campaigns": [
-                {
-                    "name": "CASA Mahotsav",
-                    "start_date": "2026-04-01",
-                    "end_date": "2026-06-30",
-                    "target_metric": "CASA",
-                    "target_value": 5000.0,
-                    "status": "Active"
-                }
-            ]}
-        )
+    def __init__(self):
+        self.path = project_path("data", "campaigns.json")
+        self._ensure_file()
 
-    def list_campaigns(self) -> list[dict[str, Any]]:
-        return self.repo.read().get("campaigns", [])
+    def _ensure_file(self):
+        if not self.path.exists():
+            self.path.write_text(json.dumps({"campaigns": []}, indent=4), encoding="utf-8")
 
-    def create_campaign(self, campaign: dict[str, Any]) -> None:
-        data = self.repo.read()
-        data["campaigns"].append(campaign)
-        self.repo.write(data)
+    def get_all(self) -> List[Dict[str, Any]]:
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            return data.get("campaigns", [])
+        except:
+            return []
+
+    def save_all(self, campaigns: List[Dict[str, Any]]):
+        self.path.write_text(json.dumps({"campaigns": campaigns}, indent=4), encoding="utf-8")
+
+    def add_campaign(self, name: str, start_date: str, end_date: str, target_metric: str, target_value: float, status: str = "Active"):
+        campaigns = self.get_all()
+        campaigns.append({
+            "name": name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "target_metric": target_metric,
+            "target_value": target_value,
+            "status": status
+        })
+        self.save_all(campaigns)
+
+    def update_campaign(self, index: int, updated_data: Dict[str, Any]):
+        campaigns = self.get_all()
+        if 0 <= index < len(campaigns):
+            campaigns[index].update(updated_data)
+            self.save_all(campaigns)
+
+    def delete_campaign(self, index: int):
+        campaigns = self.get_all()
+        if 0 <= index < len(campaigns):
+            campaigns.pop(index)
+            self.save_all(campaigns)

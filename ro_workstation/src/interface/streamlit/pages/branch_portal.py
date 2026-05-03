@@ -16,7 +16,7 @@ def render() -> None:
     
     render_action_bar(f"Branch Dashboard: {branch_name}", ["Branch: "+str(sol_id), "Real-time", "Connected"])
     
-    tabs = st.tabs(["🏠 Overview", "📢 Circulars", "🏗️ Wizards", "💬 RO Coordination", "🛍️ Products"])
+    tabs = st.tabs(["🏠 Overview", "📢 Circulars", "🚀 Campaigns", "🏗️ Wizards", "💬 RO Coordination", "🛍️ Products"])
 
     # --- TAB: OVERVIEW ---
     with tabs[0]:
@@ -71,8 +71,36 @@ def render() -> None:
                     if f"br_pdf_{i}" in st.session_state:
                         c2.download_button("📥 Download", data=st.session_state[f"br_pdf_{i}"], file_name=f"Circular_{i}.pdf", key=f"br_dl_{i}")
 
-    # --- TAB: WIZARDS ---
+    # --- TAB: CAMPAIGNS ---
     with tabs[2]:
+        from src.application.services.campaign_service import CampaignService
+        camp_service = CampaignService()
+        campaigns = camp_service.get_all()
+        
+        st.markdown("### 🚀 Ongoing Regional Campaigns")
+        active = [c for c in campaigns if c["status"] == "Active"]
+        if not active:
+            st.info("No active campaigns.")
+        else:
+            for c in active:
+                with st.container(border=True):
+                    st.markdown(f"#### {c['name']}")
+                    st.caption(f"Valid: {c['start_date']} to {c['end_date']}")
+                    
+                    # Progress Simulation
+                    progress = 0.65 # Dummy progress for demo
+                    st.progress(progress, text=f"Branch Progress: {progress*100:.0f}% of ₹{c['target_value']} Cr")
+                    st.markdown(f"**Focus Area:** {c['target_metric']}")
+        
+        st.divider()
+        st.markdown("### 📁 Recently Completed")
+        completed = [c for c in campaigns if c["status"] == "Completed"]
+        if completed:
+            for c in completed[:2]:
+                st.caption(f"✅ {c['name']} - Target: {c['target_value']} Cr (Finished: {c['end_date']})")
+
+    # --- TAB: WIZARDS ---
+    with tabs[3]:
         st.markdown("### 🛠️ Approved Branch Wizards")
         col1, col2 = st.columns(2)
         
@@ -109,7 +137,7 @@ def render() -> None:
             render_office_note_tab(doc_service, get_master_service)
 
     # --- TAB: COMS (RO COORDINATION) ---
-    with tabs[3]:
+    with tabs[4]:
         st.markdown("### 💬 Regional Office Coordination")
         st.caption("Communicate requests directly to Regional Office departments.")
         
@@ -162,7 +190,7 @@ def render() -> None:
                             """, unsafe_allow_html=True)
 
     # --- TAB: PRODUCTS ---
-    with tabs[4]:
+    with tabs[5]:
         st.markdown("### 🛍️ Product Catalog")
         products = [
             {"name": "Home Loan Plus", "cat": "Retail", "desc": "Reduced ROI for Senior Citizens.", "icon": "🏠"},
