@@ -11,9 +11,10 @@ class PerformanceLetterService:
     
     PARAM_GROUPS = {
         "Deposits": ["Total Deposits", "CASA", "SB", "CD", "Ret TD"],
-        "Core Retail": ["Core Retail", "Housing", "Vehicle", "Personal", "Mortgage", "Education", "Liquirent", "Other Retail"],
+        "Core Retail": ["Core Retail", "Housing", "Vehicle", "Personal", "Education", "Mortgage", "Liquirent", "Other Retail"],
         "MSME": ["MSME", "Mudra", "SHG"],
-        "Core Agri": ["Core Agri", "Gold", "KCC", "Agri JL"]
+        "Core Agri": ["Core Agri", "SHG", "KCC", "Gov", "OthSch"],
+        "Jewel Loan": ["Gold", "Agri JL", "Ret-Gold"]
     }
 
     def __init__(self):
@@ -79,23 +80,48 @@ class PerformanceLetterService:
         return results
 
     def generate_letters_zip(self, performance_data: List[Dict[str, Any]]) -> bytes:
-        """Generates a zip of PDFs for appreciation and explanation letters."""
+        """Generates a zip of PDFs for appreciation and explanation letters, grouped by parameter category."""
         import io
         import zipfile
         
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zf:
             for branch in performance_data:
-                # 1. Appreciation Letter for achievements
-                if branch["achievements"]:
-                    pdf = self.doc_service.generate_performance_appreciation(branch)
-                    pdf_name = f"Appreciation_{branch['branch_name'].replace(' ', '_')}_{branch['sol']}.pdf"
-                    zf.writestr(f"Appreciation_Letters/{pdf_name}", pdf)
+                # Group branch achievements and declines by PARAM_GROUPS
+                branch_groups = {}
+                for group_name, params in self.PARAM_GROUPS.items():
+                    branch_groups[group_name] = {
+                        "achievements": [a for a in branch["achievements"] if a["parameter"] in params],
+                        "declines": [d for d in branch["declines"] if d["parameter"] in params]
+                    }
 
-                # 2. Explanation Letter if significant shortfalls
-                if branch["declines"]:
-                    pdf = self.doc_service.generate_explanation_letter(branch)
-                    pdf_name = f"Explanation_{branch['branch_name'].replace(' ', '_')}_{branch['sol']}.pdf"
-                    zf.writestr(f"Explanation_Letters/{pdf_name}", pdf)
+                for group_name, data in branch_groups.items():
+                    # 1. Group Appreciation Letter
+                    if data["achievements"]:
+                        perf_payload = {
+                            "branch_name": branch["branch_name"],
+                            "sol": branch["sol"],
+                            "date": branch["date"],
+                            "group_name": group_name,
+                            "achievements": data["achievements"]
+                        }
+                        pdf = self.doc_service.generate_performance_appreciation(perf_payload)
+                        folder = f"Appreciation_Letters/{group_name.replace(' ', '_')}"
+                        file_name = f"Appr_{branch['sol']}_{group_name.replace(' ', '_')}.pdf"
+                        zf.writestr(f"{folder}/{file_name}", pdf)
+
+                    # 2. Group Explanation Letter
+                    if data["declines"]:
+                        perf_payload = {
+                            "branch_name": branch["branch_name"],
+                            "sol": branch["sol"],
+                            "date": branch["date"],
+                            "group_name": group_name,
+                            "declines": data["declines"]
+                        }
+                        pdf = self.doc_service.generate_explanation_letter(perf_payload)
+                        folder = f"Explanation_Letters/{group_name.replace(' ', '_')}"
+                        file_name = f"Expl_{branch['sol']}_{group_name.replace(' ', '_')}.pdf"
+                        zf.writestr(f"{folder}/{file_name}", pdf)
         
         return zip_buffer.getvalue()
