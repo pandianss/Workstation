@@ -15,23 +15,22 @@ def resolve_current_user() -> UserAccess:
     admin_service = AdminService()
     settings = get_app_settings()
 
-    if session_service.is_session_active(username, settings.session_timeout_hours):
-        return UserAccess(
-            username="special_admin",
-            role="ADMIN",
+    # Base user object from Master Data or fallback to Guest
+    user = admin_service.get_user(username)
+    if not user:
+        user = UserAccess(
+            username=username,
+            role="GUEST",
             dept="ALL",
             depts=["ALL"],
-            name="Special Admin",
+            name=username,
         )
 
-    user = admin_service.get_user(username)
-    if user:
-        return user
+    # Check for active session override (Elevated Access)
+    if session_service.is_session_active(username, settings.session_timeout_hours):
+        user.role = "ADMIN"
+        # Optional: Add departments if not present
+        if "ALL" not in user.depts:
+            user.depts.append("ALL")
 
-    return UserAccess(
-        username=username,
-        role="GUEST",
-        dept="ALL",
-        depts=["ALL"],
-        name=username,
-    )
+    return user

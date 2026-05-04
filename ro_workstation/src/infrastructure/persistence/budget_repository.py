@@ -15,13 +15,22 @@ class BudgetRepository:
         self.db_path = project_path("data", "mis_store.db")
         
         # Mapping from MIS Enriched Names (Uppercase) to Excel Budget PARAMETER codes
+        # Keys are uppercase MIS column names (after enrichment).
+        # Values are the PARAMETER codes used in the budget Excel file.
+        #
+        # NOTE: "TOTAL DEPOSITS" is NOT "TD".
+        #   - TD in budget Excel = Term Deposit target only.
+        #   - Total Deposits = CASA + TD (SB + CD + TD).
+        #   - The budget Excel should have a separate "Tot Dep" code (or sum CASA+TD at query time).
+        #   - Letters are generated separately for CASA group and TD group — not a combined Total Deposits group.
         self.param_map = {
             "TOTAL ADVANCES": "Adv",
-            "TOTAL DEPOSITS": "TD",
+            "TOTAL DEPOSITS": "Tot_Dep",
             "CASA": "CASA",
             "NPA": "NPA",
             "SB": "SB",
             "CD": "CD",
+            "TD": "TD",
             "RET TD": "Ret_TD",
             "ADV": "Adv",
             "BUS": "Bus",
@@ -52,7 +61,7 @@ class BudgetRepository:
         
         self.json_repo = JsonRepository(
             project_path("data", "budgets.json"),
-            {"defaults": {"Total Advances": 500000.0}}
+            {"defaults": {"TOTAL ADVANCES": 500000.0}}
         )
         
         # Automatically sync if file changed

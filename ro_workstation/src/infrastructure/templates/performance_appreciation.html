@@ -28,17 +28,27 @@
                 <th style="padding: 10px; text-align: right;">Budget</th>
                 <th style="padding: 10px; text-align: right;">Actual</th>
                 <th style="padding: 10px; text-align: right;">Surplus</th>
+                <th style="padding: 10px; text-align: right;">Growth since March</th>
                 <th style="padding: 10px; text-align: center;">% Achievement</th>
             </tr>
         </thead>
         <tbody>
             {% for a in achievements %}
             <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px;">{{ a.parameter }}</td>
-                <td style="padding: 10px; text-align: right;">{{ "%.2f"|format(a.target) }}</td>
-                <td style="padding: 10px; text-align: right;">{{ "%.2f"|format(a.actual) }}</td>
-                <td style="padding: 10px; text-align: right; color: #10b981;">{{ "%.2f"|format(a.variance) }}</td>
-                <td style="padding: 10px; text-align: center; font-weight: 700; color: #10b981;">{{ "%.1f"|format(a.pct) }}%</td>
+                <td style="padding: 10px; {% if not a.is_parent %}padding-left: 30px; font-style: italic; color: #475569;{% else %}font-weight: 700; color: #21357f;{% endif %}">
+                    {% if not a.is_parent %}└─ {% endif %}{{ a.parameter }}
+                </td>
+                <td style="padding: 10px; text-align: right; {% if a.is_parent %}font-weight: 700;{% endif %}">{{ "%.2f"|format(a.target) }}</td>
+                <td style="padding: 10px; text-align: right; {% if a.is_parent %}font-weight: 700;{% endif %}">{{ "%.2f"|format(a.actual) }}</td>
+                <td style="padding: 10px; text-align: right; color: {% if a.pct >= 100 %}#10b981{% else %}#64748b{% endif %}; {% if a.is_parent %}font-weight: 700;{% endif %}">
+                    {{ "%.2f"|format(a.variance) }}
+                </td>
+                <td style="padding: 10px; text-align: right; color: {% if a.fy_growth >= 0 %}#10b981{% else %}#ef4444{% endif %}; {% if a.is_parent %}font-weight: 700;{% endif %}">
+                    {{ "%.2f"|format(a.fy_growth) }}
+                </td>
+                <td style="padding: 10px; text-align: center; font-weight: 700; color: {% if a.pct >= 100 %}#10b981{% else %}#64748b{% endif %};">
+                    {{ "%.1f"|format(a.pct) }}%
+                </td>
             </tr>
             {% endfor %}
         </tbody>

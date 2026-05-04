@@ -61,44 +61,39 @@ def render() -> None:
     
     # Advanced Performance Tracking
     with st.expander("📈 Advanced Budget Gap Analysis", expanded=True):
-        metric_to_track = st.selectbox("Select Parameter to Analyze", sorted(metric_options), index=sorted(metric_options).index("Total Advances") if "Total Advances" in metric_options else 0)
+        metric_to_track = st.selectbox("Select Parameter to Analyze", sorted(metric_options), index=sorted(metric_options).index("TOTAL ADVANCES") if "TOTAL ADVANCES" in metric_options else 0)
         perf = service.get_performance_metrics(selected_date, metric_to_track, sols=selected_sols)
         
         def format_cr(val):
-            """Formats Lacs to Crores if large enough."""
-            if abs(val) >= 100: # If more than 100 Lacs, show in Crores? 
-                # Actually Bank ROs usually use Lacs for specific parameters, but Cr for Total.
-                # Let's stick to Lacs but with comma separators, or Cr if > 1000 Lacs (10 Cr).
-                if abs(val) >= 1000:
-                    return f"{val/100:.2f} Cr"
-            return f"{val:,.1f} L"
+            """Formats Lacs to Crores as per bank standards."""
+            return f"{val/100:,.2f} Cr"
 
         if perf:
+            st.markdown("### 🎯 Executive Budget Gap Summary")
             p_col1, p_col2, p_col3 = st.columns(3)
             with p_col1:
                 st.markdown(f"""
-                    <div class="glass-panel" style="border-top: 4px solid #10b981;">
-                        <div style="font-size: 0.8rem; color: #94a3b8;">FY GROWTH</div>
-                        <div style="font-size: 1.8rem; font-weight: 700;">{format_cr(perf['fy_growth'])}</div>
-                        <div style="color: #10b981; font-weight: 600;">↑ {perf['fy_growth_pct']:.2f}%</div>
+                    <div class="glass-panel" style="border-top: 4px solid #10b981; background: #0f172a; border-radius: 12px; padding: 20px;">
+                        <div style="font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.1rem; font-weight: 700; text-transform: uppercase;">FY GROWTH</div>
+                        <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 12px 0;">{format_cr(perf['fy_growth'])}</div>
+                        <div style="color: #10b981; font-weight: 700; font-size: 1rem;">↑ {perf['fy_growth_pct']:.2f}%</div>
                     </div>
                 """, unsafe_allow_html=True)
             with p_col2:
                 gap = perf['gap_current_month']
-                gap_color = "#ef4444" if gap > 0 else "#10b981"
                 st.markdown(f"""
-                    <div class="glass-panel" style="border-top: 4px solid {gap_color};">
-                        <div style="font-size: 0.8rem; color: #94a3b8;">MONTHLY GAP</div>
-                        <div style="font-size: 1.8rem; font-weight: 700; color: {gap_color};">{format_cr(gap)}</div>
-                        <div style="font-size: 0.8rem;">Target: {format_cr(perf['targets']['month'])}</div>
+                    <div class="glass-panel" style="border-top: 4px solid #ef4444; background: #0f172a; border-radius: 12px; padding: 20px;">
+                        <div style="font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.1rem; font-weight: 700; text-transform: uppercase;">MONTHLY GAP</div>
+                        <div style="font-size: 2.2rem; font-weight: 800; color: #ef4444; margin: 12px 0;">{format_cr(gap)}</div>
+                        <div style="font-size: 0.9rem; color: #f8fafc; font-weight: 600;">Target: {format_cr(perf['targets']['month'])}</div>
                     </div>
                 """, unsafe_allow_html=True)
             with p_col3:
                 st.markdown(f"""
-                    <div class="glass-panel" style="border-top: 4px solid #3b82f6;">
-                        <div style="font-size: 0.8rem; color: #94a3b8;">ANNUAL GAP</div>
-                        <div style="font-size: 1.8rem; font-weight: 700;">{format_cr(perf['gap_fy'])}</div>
-                        <div style="font-size: 0.8rem;">Target: {format_cr(perf['targets']['fy'])}</div>
+                    <div class="glass-panel" style="border-top: 4px solid #ffffff; background: #0f172a; border-radius: 12px; padding: 20px;">
+                        <div style="font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.1rem; font-weight: 700; text-transform: uppercase;">ANNUAL GAP</div>
+                        <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 12px 0;">{format_cr(perf['gap_fy'])}</div>
+                        <div style="font-size: 0.9rem; color: #f8fafc; font-weight: 600;">Target: {format_cr(perf['targets']['fy'])}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -119,8 +114,8 @@ def render() -> None:
             if not history.empty:
                 st.markdown("#### 📈 Dynamic Business Trend (Current FY)")
                 # Multi-line chart: Advances vs Deposits
-                trend = history.groupby("DATE", as_index=False)[["Total Advances", "Total Deposits"]].sum()
-                fig = px.line(trend, x="DATE", y=["Total Advances", "Total Deposits"], 
+                trend = history.groupby("DATE", as_index=False)[["TOTAL ADVANCES", "TOTAL DEPOSITS"]].sum()
+                fig = px.line(trend, x="DATE", y=["TOTAL ADVANCES", "TOTAL DEPOSITS"], 
                             template="plotly_dark", color_discrete_sequence=["#3b82f6", "#10b981"])
                 fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title=None)
                 st.plotly_chart(fig, use_container_width=True)
@@ -131,7 +126,7 @@ def render() -> None:
             if not frame.empty:
                 # Add Branch Name column for display
                 frame["Branch"] = frame["SOL"].map(lambda x: unit_map.get(int(x), f"SOL {x}") if pd.notnull(x) else "Unknown")
-                st.dataframe(frame[["Branch", "Total Advances", "Total Deposits", "NPA %"]].sort_values("Total Advances", ascending=False), 
+                st.dataframe(frame[["Branch", "TOTAL ADVANCES", "TOTAL DEPOSITS", "NPA %"]].sort_values("TOTAL ADVANCES", ascending=False), 
                              hide_index=True, use_container_width=True)
             
     with tabs[1]:
@@ -415,19 +410,29 @@ def render() -> None:
         if performance_data:
             with st.expander("📝 Review Monthly Performance Status", expanded=False):
                 for p in performance_data:
+                    # Flatten groups for UI summary
+                    all_achievements = []
+                    all_declines = []
+                    for g_data in p.get("groups", {}).values():
+                        all_achievements.extend(g_data.get("achievements", []))
+                        all_declines.extend(g_data.get("declines", []))
+
                     status_col, name_col, details_col = st.columns([1, 2, 4])
                     with status_col:
-                        if p["achievements"] and not p["declines"]:
+                        if all_achievements and not all_declines:
                             st.success("EXCELLENT")
-                        elif p["achievements"] and p["declines"]:
+                        elif all_achievements and all_declines:
                             st.warning("MIXED")
                         else:
                             st.error("ACTION REQ")
                     with name_col:
                         st.markdown(f"**{p['branch_name']}** ({p['sol']})")
                     with details_col:
-                        ach_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in p["achievements"]]
-                        dec_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in p["declines"]]
+                        ach_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in all_achievements[:3]]
+                        if len(all_achievements) > 3: ach_tags.append("...")
+                        dec_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in all_declines[:3]]
+                        if len(all_declines) > 3: dec_tags.append("...")
+                        
                         if ach_tags: st.markdown(f"✅ {', '.join(ach_tags)}")
                         if dec_tags: st.markdown(f"⚠️ {', '.join(dec_tags)}")
 

@@ -8,16 +8,16 @@
     Indian Overseas Bank.</p>
 
     <div class="doc-title" style="margin: 25px 0 15px 0; text-align: center;">
-        <h1 style="color: #21357f; font-size: 20px; text-decoration: none; margin: 0; font-weight: 800; letter-spacing: 1px;">EXPLANATION FOR BUDGET SHORTFALL</h1>
+        <h1 style="color: #21357f; font-size: 20px; text-decoration: none; margin: 0; font-weight: 800; letter-spacing: 1px;">EXPLANATION FOR BUDGET SHORTFALL: {{ group_name.upper() }}</h1>
     </div>
 
     <div style="margin: 15px 0; border-left: 4px solid #ef4444; padding-left: 15px; font-weight: 700; color: #21357f; text-transform: uppercase; font-size: 13px;">
-        Sub: Shortfall in Budget Achievement - {{ month_year }}
+        Sub: Shortfall in {{ group_name }} Budget - {{ month_year }}
     </div>
 
     <p style="margin-top: 15px;">Dear Sir/Madam,</p>
 
-    <p>Upon reviewing the business performance of <strong>{{ branch_name }} Branch</strong> for the month ended <strong>{{ month_year }}</strong>, it is observed that the branch has significantly fallen short of the assigned budget targets in the following parameters:</p>
+    <p>Upon reviewing the business performance of <strong>{{ branch_name }} Branch</strong> for the month ended <strong>{{ month_year }}</strong>, it is observed that the branch has significantly fallen short of the assigned budget targets in the following parameters of {{ group_name }}:</p>
 
     <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px;">
         <thead>
@@ -26,17 +26,27 @@
                 <th style="padding: 10px; text-align: right;">Budget</th>
                 <th style="padding: 10px; text-align: right;">Actual</th>
                 <th style="padding: 10px; text-align: right;">Gap</th>
+                <th style="padding: 10px; text-align: right;">Growth since March</th>
                 <th style="padding: 10px; text-align: center;">% Achievement</th>
             </tr>
         </thead>
         <tbody>
             {% for d in declines %}
             <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px;">{{ d.parameter }}</td>
-                <td style="padding: 10px; text-align: right;">{{ "%.2f"|format(d.target) }}</td>
-                <td style="padding: 10px; text-align: right;">{{ "%.2f"|format(d.actual) }}</td>
-                <td style="padding: 10px; text-align: right; color: #ef4444;">{{ "%.2f"|format(d.variance) }}</td>
-                <td style="padding: 10px; text-align: center;">{{ "%.1f"|format(d.pct) }}%</td>
+                <td style="padding: 10px; {% if not d.is_parent %}padding-left: 30px; font-style: italic; color: #475569;{% else %}font-weight: 700; color: #21357f;{% endif %}">
+                    {% if not d.is_parent %}└─ {% endif %}{{ d.parameter }}
+                </td>
+                <td style="padding: 10px; text-align: right; {% if d.is_parent %}font-weight: 700;{% endif %}">{{ "%.2f"|format(d.target) }}</td>
+                <td style="padding: 10px; text-align: right; {% if d.is_parent %}font-weight: 700;{% endif %}">{{ "%.2f"|format(d.actual) }}</td>
+                <td style="padding: 10px; text-align: right; color: {% if d.pct < 90 %}#ef4444{% else %}#64748b{% endif %}; {% if d.is_parent %}font-weight: 700;{% endif %}">
+                    {{ "%.2f"|format(d.variance) }}
+                </td>
+                <td style="padding: 10px; text-align: right; color: {% if d.fy_growth >= 0 %}#10b981{% else %}#ef4444{% endif %}; {% if d.is_parent %}font-weight: 700;{% endif %}">
+                    {{ "%.2f"|format(d.fy_growth) }}
+                </td>
+                <td style="padding: 10px; text-align: center; font-weight: 700; color: {% if d.pct < 90 %}#ef4444{% else %}#64748b{% endif %};">
+                    {{ "%.1f"|format(d.pct) }}%
+                </td>
             </tr>
             {% endfor %}
         </tbody>

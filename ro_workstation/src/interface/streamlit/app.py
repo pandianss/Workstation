@@ -79,8 +79,8 @@ def _render_sidebar() -> str:
                 if st.form_submit_button("Elevate Privileges", use_container_width=True):
                     settings = get_app_settings()
                     if admin_pass == settings.admin_password:
-                        st.session_state["role"] = "ADMIN"
-                        st.session_state["is_elevated"] = True
+                        from src.application.services.session_service import SessionService
+                        SessionService().start_session(getpass.getuser())
                         st.success("Admin access granted!")
                         st.rerun()
                     else:
@@ -133,6 +133,7 @@ def _require_login() -> bool:
         if st.form_submit_button("Login"):
             if admin_pass == settings.admin_password:
                 session_service.start_session(current_user.username)
+                st.success("Welcome, Admin.")
                 st.rerun()
             else:
                 st.error("Invalid password")

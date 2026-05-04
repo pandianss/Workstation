@@ -72,19 +72,19 @@ class MISAnalyticsService:
             return df[existing].fillna(0).sum(axis=1) if existing else 0
 
         frame["CORE RETAIL"] = safe_sum(frame, ["HOUSING", "VEHICLE", "PERSONAL", "MORTGAGE", "EDUCATION", "LIQUIRENT", "OTHER RETAIL"])
-        frame["Total Advances"] = safe_sum(frame, ["CORE AGRI", "GOLD", "MSME", "CORE RETAIL"])
+        frame["TOTAL ADVANCES"] = safe_sum(frame, ["CORE AGRI", "GOLD", "MSME", "CORE RETAIL"])
         frame["CASA"] = safe_sum(frame, ["SB", "CD"])
         td = frame["TD"].fillna(0) if "TD" in frame.columns else 0
         bulk = frame["BULK DEP"].fillna(0) if "BULK DEP" in frame.columns else 0
-        frame["Ret TD"] = td - bulk
-        frame["Total Deposits"] = safe_sum(frame, ["SB", "CD", "TD"])
-        frame["CD Ratio"] = np.where(frame["Total Deposits"] > 0, frame["Total Advances"] / frame["Total Deposits"] * 100, 0).round(2)
-        frame["Total Cash"] = safe_sum(frame, ["CASH ON HAND", "ATM CASH", "BC CASH", "BNA CASH"])
+        frame["RET TD"] = td - bulk          # FIXED: was "Ret TD" — must match uppercase convention
+        frame["TOTAL DEPOSITS"] = safe_sum(frame, ["SB", "CD", "TD"])
+        frame["CD RATIO"] = np.where(frame["TOTAL DEPOSITS"] > 0, frame["TOTAL ADVANCES"] / frame["TOTAL DEPOSITS"] * 100, 0).round(2)
+        frame["TOTAL CASH"] = safe_sum(frame, ["CASH ON HAND", "ATM CASH", "BC CASH", "BNA CASH"])
         crl = frame["CRL"].fillna(0) if "CRL" in frame.columns else 0
-        frame["Cash vs CRL"] = frame["Total Cash"] - crl
-        frame["Total Recovery"] = safe_sum(frame, ["REC Q1", "REC Q2", "REC Q3", "REC Q4"])
+        frame["CASH VS CRL"] = frame["TOTAL CASH"] - crl
+        frame["TOTAL RECOVERY"] = safe_sum(frame, ["REC Q1", "REC Q2", "REC Q3", "REC Q4"])
         npa = frame["NPA"].fillna(0) if "NPA" in frame.columns else 0
-        frame["NPA %"] = np.where(frame["Total Advances"] > 0, npa / frame["Total Advances"] * 100, 0).round(2)
+        frame["NPA %"] = np.where(frame["TOTAL ADVANCES"] > 0, npa / frame["TOTAL ADVANCES"] * 100, 0).round(2)
         return frame
 
     def build_snapshot(self, filters: MISFilter) -> MISSnapshot | None:
@@ -105,10 +105,10 @@ class MISAnalyticsService:
             history = history[history["SOL"] == aggregate_sol] if not history[history["SOL"] == aggregate_sol].empty else history
 
         kpis = {
-            "Total Advances": float(selected["Total Advances"].sum()) if "Total Advances" in selected.columns else 0.0,
-            "Total Deposits": float(selected["Total Deposits"].sum()) if "Total Deposits" in selected.columns else 0.0,
+            "Total Advances": float(selected["TOTAL ADVANCES"].sum()) if "TOTAL ADVANCES" in selected.columns else 0.0,
+            "Total Deposits": float(selected["TOTAL DEPOSITS"].sum()) if "TOTAL DEPOSITS" in selected.columns else 0.0,
             "NPA": float(selected["NPA"].sum()) if "NPA" in selected.columns else 0.0,
-            "CD Ratio": float(selected["CD Ratio"].mean()) if "CD Ratio" in selected.columns else 0.0,
+            "CD Ratio": float(selected["CD RATIO"].mean()) if "CD RATIO" in selected.columns else 0.0,
         }
         
         # Milestone Record
@@ -131,10 +131,13 @@ class MISAnalyticsService:
             milestone_breakthroughs=milestone_breakthroughs
         )
 
-    def get_performance_metrics(self, selected_date: datetime.date, metric_name: str = "Total Advances", sols: list[int] | None = None) -> dict:
+    def get_performance_metrics(self, selected_date: datetime.date, metric_name: str = "TOTAL ADVANCES", sols: list[int] | None = None) -> dict:
         frame = self.get_data()
         if frame.empty:
             return {}
+
+        # Handle casing
+        metric_name = metric_name.upper()
 
         # Filter frame by SOLs if provided, else by region aggregate if available
         filtered_history = frame.copy()
@@ -152,7 +155,7 @@ class MISAnalyticsService:
         
         # Get actuals for selected date
         current_data = filtered_history[filtered_history["DATE"].dt.date == selected_date]
-        current_val = current_data[metric_name].sum() if not current_data.empty else 0.0
+        current_val = current_data[metric_name].sum() if not current_data.empty and metric_name in current_data.columns else 0.0
 
         # Get actuals for FY Start (using same SOL filter)
         fy_start_data = filtered_history[filtered_history["DATE"].dt.date == fy_start]
@@ -160,12 +163,12 @@ class MISAnalyticsService:
             # Fallback: find the earliest record in this FY
             fy_start_data = filtered_history[filtered_history["DATE"].dt.date >= fy_start].sort_values("DATE").head(1)
         
-        fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty else 0.0
+        fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty and metric_name in fy_start_data.columns else 0.0
         
         # If still zero, try any earliest record ever as last resort to avoid 10000% growth
         if fy_start_val == 0:
             fy_start_data = filtered_history.sort_values("DATE").head(1)
-            fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty else 0.0
+            fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty and metric_name in fy_start_data.columns else 0.0
 
         fy_growth = current_val - fy_start_val
         fy_growth_pct = (fy_growth / fy_start_val * 100) if fy_start_val > 0 else 0.0
