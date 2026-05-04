@@ -10,9 +10,10 @@ class PerformanceLetterService:
     """Service to generate appreciation and explanation letters based on budget performance."""
     
     PARAM_GROUPS = {
-        "Deposits": ["SB", "CASA", "Total Deposits"],
-        "Advances": ["Total Advances", "MSME", "Core Retail", "Core Agri"],
-        "Asset Quality": ["NPA", "Jewel"]
+        "Deposits": ["Total Deposits", "CASA", "SB", "CD", "Ret TD"],
+        "Core Retail": ["Core Retail", "Housing", "Vehicle", "Personal", "Mortgage", "Education", "Liquirent", "Other Retail"],
+        "MSME": ["MSME", "Mudra", "SHG"],
+        "Core Agri": ["Core Agri", "Gold", "KCC", "Agri JL"]
     }
 
     def __init__(self):
