@@ -1,58 +1,29 @@
-from src.infrastructure.persistence.database import get_db_session
-from src.infrastructure.persistence.sqlite_models import MISRecordModel
-from sqlalchemy import func
 
-def check_2287():
-    with get_db_session() as session:
-        latest_date = session.query(func.max(MISRecordModel.date)).scalar()
-        print(f"Latest Date: {latest_date}")
-        
-        rec = session.query(MISRecordModel).filter(MISRecordModel.sol == 2287, MISRecordModel.date == latest_date).first()
-        if not rec:
-            print("No record for SOL 2287 on latest date.")
-            # Check if it exists at all
-            any_rec = session.query(MISRecordModel).filter(MISRecordModel.sol == 2287).order_by(MISRecordModel.date.desc()).first()
-            if any_rec:
-                print(f"Found record for SOL 2287 on {any_rec.date}")
-                rec = any_rec
-            else:
-                print("SOL 2287 not found in MIS records at all.")
-                return
+from src.application.services.performance_letter_service import PerformanceLetterService
+import datetime
+import streamlit as st
 
-        # Calculate parameters as per MilestoneService
-        sb = rec.sb / 100
-        cd = rec.cd / 100
-        td = rec.td / 100
-        agri = rec.core_agri / 100
-        msme = rec.msme / 100
-        gold = rec.gold / 100
-        
-        core_retail = (
-            rec.housing + rec.vehicle + rec.personal + 
-            rec.education + rec.mortgage + rec.liquirent + rec.other_retail
-        ) / 100
-        
-        total_dep = sb + cd + td
-        total_adv = agri + msme + gold + core_retail # Wait! In service gold is separate from core_retail but in Total Adv?
-        
-        # Let's check MilestoneService._calculate_parameters
-        # agri = r.core_agri / 100
-        # msme = r.msme / 100
-        # core_retail = (...) / 100
-        # total_dep = sb + cd + td
-        # total_adv = agri + msme + core_retail  <-- WAIT! I missed 'gold' in total_adv in the service?
-        
-        print("\nSOL 2287 Metrics (Cr):")
-        print(f"  SB: {sb:.2f}")
-        print(f"  CD: {cd:.2f}")
-        print(f"  TD: {td:.2f}")
-        print(f"  Agri: {agri:.2f}")
-        print(f"  MSME: {msme:.2f}")
-        print(f"  Jewel (Gold): {gold:.2f}")
-        print(f"  Core Retail: {core_retail:.2f}")
-        print(f"  Total Deposits: {total_dep:.2f}")
-        print(f"  Total Advances: {total_adv:.2f}")
-        print(f"  Business: {total_dep + total_adv:.2f}")
+def check_1013():
+    if not hasattr(st, "session_state"):
+        class MockSessionState(dict): pass
+        st.session_state = MockSessionState()
+        st.session_state["mis_needs_ingest"] = False
+    
+    service = PerformanceLetterService()
+    target_date = datetime.date(2026, 4, 30)
+    data = service.get_branch_performance(target_date)
+    
+    sol_1013 = next((p for p in data if p["sol"] == 1013), None)
+    if sol_1013:
+        print(f"SOL 1013:")
+        print(f"  Achievements: {len(sol_1013['achievements'])}")
+        for a in sol_1013['achievements']:
+            print(f"    - {a['parameter']}: Actual {a['actual']}, Target {a['target']}, Pct {a['pct']:.1f}%")
+        print(f"  Declines: {len(sol_1013['declines'])}")
+        for d in sol_1013['declines']:
+            print(f"    - {d['parameter']}: Actual {d['actual']}, Target {d['target']}, Pct {d['pct']:.1f}%")
+    else:
+        print("SOL 1013 not found in performance data.")
 
 if __name__ == "__main__":
-    check_2287()
+    check_1013()

@@ -73,6 +73,15 @@ class MISRecordModel(Base):
     education = Column(Float, default=0.0)
     liquirent = Column(Float, default=0.0)
     other_retail = Column(Float, default=0.0)
+    mudra = Column(Float, default=0.0)
+    agri_jl = Column(Float, default=0.0)
+    retail_jl = Column(Float, default=0.0)
+    shg = Column(Float, default=0.0)
+    kcc = Column(Float, default=0.0)
+    govt_spon = Column(Float, default=0.0)
+    oth_schematic = Column(Float, default=0.0)
+    total_retail = Column(Float, default=0.0)
+    adv = Column(Float, default=0.0)
 
 
 class IngestedFileModel(Base):

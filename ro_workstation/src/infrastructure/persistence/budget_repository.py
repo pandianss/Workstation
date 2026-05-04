@@ -42,7 +42,8 @@ class BudgetRepository:
             "GOVT SPON": "Gov",
             "OTH SCHEMATIC": "OthSch",
             "CORE RETAIL": "Core Ret",
-            "TOTAL RETAIL": "Ret"
+            "TOTAL RETAIL": "Ret",
+            "RETAIL JL": "Ret-Gold"
         }
 
         self.engine = create_engine(f"sqlite:///{self.db_path.as_posix()}")
@@ -135,7 +136,7 @@ class BudgetRepository:
             query = session.query(func.sum(BudgetModel.target)).filter(BudgetModel.parameter == excel_param)
             
             if sols:
-                query = query.filter(BudgetModel.sol.isin(sols))
+                query = query.filter(BudgetModel.sol.in_(sols))
             
             if year_month:
                 target_dt = pd.to_datetime(year_month).date()

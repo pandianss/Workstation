@@ -13,8 +13,8 @@ class PerformanceLetterService:
         "Deposits": ["Total Deposits", "CASA", "SB", "CD", "Ret TD"],
         "Core Retail": ["Core Retail", "Housing", "Vehicle", "Personal", "Education", "Mortgage", "Liquirent", "Other Retail"],
         "MSME": ["MSME", "Mudra", "SHG"],
-        "Core Agri": ["Core Agri", "SHG", "KCC", "Gov", "OthSch"],
-        "Jewel Loan": ["Gold", "Agri JL", "Ret-Gold"]
+        "Core Agri": ["Core Agri", "SHG", "KCC", "Govt Spon", "Oth Schematic"],
+        "Jewel Loan": ["Gold", "Agri JL", "Retail JL"]
     }
 
     def __init__(self):
