@@ -52,3 +52,10 @@ class MasterRepository:
             model = self._to_model(domain)
             session.merge(model)
             session.commit()
+
+    def save_all(self, domains: list[MasterRecord]) -> None:
+        with self.session_factory() as session:
+            for d in domains:
+                model = self._to_model(d)
+                session.merge(model)
+            session.commit()

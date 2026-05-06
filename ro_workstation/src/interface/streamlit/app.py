@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import streamlit as st
+import datetime
 
 from src.application.services.session_service import SessionService
 from src.core.config.config_loader import get_app_settings
@@ -15,33 +16,89 @@ FAVICON_B64 = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9I
 LOGO_B64 = FAVICON_B64
 
 def _render_header() -> None:
+    display_name = st.session_state.get("display_name", "User")
     st.markdown(
         f"""
-        <section class="app-hero">
-            <div style="display: flex; align-items: flex-start; justify-content: space-between;">
-                <div>
-                    <div class="app-hero__eyebrow">Regional operations cockpit</div>
-                    <h1>{get_app_settings().app_title}</h1>
-                    <p class="app-hero__subtitle">
-                        Modular regional office workstation designed for the Dindigul administrative hierarchy.
-                    </p>
-                </div>
-                <div style="padding: 5px;">
-                    <img src="data:image/svg+xml;base64,{LOGO_B64}" width="50">
-                </div>
+        <div class="top-bar-container">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.4rem;">👋</span>
+                <span style="font-size: 1.1rem; font-weight: 600; color: #ffffff; letter-spacing: 0.5px;">
+                    Welcome, {display_name.upper()} 
+                    <span style="color: rgba(255,255,255,0.4); margin: 0 12px; font-weight: 300;">|</span> 
+                    <span style="color: rgba(255,255,255,0.7); font-weight: 400; font-size: 0.95rem;">Regional Operations Cockpit</span>
+                </span>
             </div>
-            <div class="app-badges">
-                <span class="app-badge">User: {st.session_state.get("display_name", "User")}</span>
-                <span class="app-badge">Role: {st.session_state.get("role", "USER")}</span>
-                <span class="app-badge">Dept: {st.session_state.get("user_dept", "ALL")}</span>
+            <div style="font-size: 0.85rem; color: rgba(255,255,255,0.5); font-weight: 500;">
+                {datetime.datetime.now().strftime("%A, %d %B %Y")}
             </div>
-        </section>
+        </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
 
 def _render_sidebar() -> str:
+    from src.core.logging.audit import AuditLogger
+    audit_logger = AuditLogger()
+    username = st.session_state.get("username", "GUEST")
+    
+    st.sidebar.markdown("### 🚀 Quick Access")
+    frequent_pages = audit_logger.get_frequent_pages(username)
+    
+    # We use a session state key to handle clicks from quick access
+    if "requested_page" not in st.session_state:
+        st.session_state["requested_page"] = "Dashboard"
+
+    # Robust CSS for Link-style Navigation
+    st.sidebar.markdown(
+        """
+        <style>
+        /* Target buttons in the sidebar to look like links and be left-aligned */
+        [data-testid="stSidebar"] .stButton > button {
+            background-color: transparent !important;
+            border: none !important;
+            padding: 0px !important;
+            margin: 0px !important;
+            height: 24px !important;
+            min-height: 24px !important;
+            line-height: 24px !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            font-size: 0.95rem !important;
+            font-weight: 400 !important;
+            box-shadow: none !important;
+            display: flex !important;
+        }
+        /* Ensure the internal flex container also aligns left */
+        [data-testid="stSidebar"] .stButton > button div {
+            justify-content: flex-start !important;
+            text-align: left !important;
+            width: 100% !important;
+        }
+        [data-testid="stSidebar"] .stButton > button:hover {
+            color: #ffffff !important;
+            background-color: transparent !important;
+            text-decoration: underline !important;
+        }
+        /* Tighten spacing between elements in sidebar */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+            gap: 0.1rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if frequent_pages:
+        for p in frequent_pages:
+            if st.sidebar.button(f"👉 {p}", key=f"quick_{p}", use_container_width=True):
+                st.session_state["requested_page"] = p
+                st.rerun()
+    else:
+        st.sidebar.caption("No frequent pages yet.")
+
+    st.sidebar.markdown("---")
     st.sidebar.markdown("### 🛠️ Workstation Hub")
     
     # Define Groups for logical organization
@@ -55,20 +112,31 @@ def _render_sidebar() -> str:
     }
 
     is_admin = st.session_state.get("role") == "ADMIN"
-    all_allowed_labels = []
-    label_to_page = {}
-    
-    for group, pages in navigation_structure.items():
-        filtered_pages = pages if is_admin else [p for p in pages if p != "Admin"]
-        for p in filtered_pages:
-            icon = group.split()[0]
-            label = f"{icon} {p}"
-            all_allowed_labels.append(label)
-            label_to_page[label] = p
+    current_page = st.session_state.get("requested_page", "Dashboard")
 
-    # Navigation Radio with Icons
-    selected_label = st.sidebar.radio("Navigation", all_allowed_labels, label_visibility="collapsed")
-    page = label_to_page[selected_label]
+    # Grouped Navigation with Expanders
+    for group, pages in navigation_structure.items():
+        # Check if any page in this group is allowed
+        allowed_in_group = [p for p in pages if is_admin or p != "Admin"]
+        if not allowed_in_group:
+            continue
+            
+        with st.sidebar.expander(group, expanded=(current_page in allowed_in_group)):
+            for p in allowed_in_group:
+                # Use primary button style for the active page
+                btn_type = "primary" if p == current_page else "secondary"
+                if st.button(p, key=f"nav_btn_{p}", use_container_width=True, type=btn_type):
+                    if p != current_page:
+                        st.session_state["requested_page"] = p
+                        audit_logger.log(username, f"Viewed page {p}")
+                        st.rerun()
+
+    page = st.session_state["requested_page"]
+    
+    # Log initial view if not already logged for this session's first run
+    if "first_view_logged" not in st.session_state:
+        audit_logger.log(username, f"Viewed page {page}")
+        st.session_state["first_view_logged"] = True
     
     # Admin Password Override Section
     if not is_admin:
@@ -86,18 +154,6 @@ def _render_sidebar() -> str:
                     else:
                         st.error("Invalid password")
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Session")
-    st.sidebar.caption(f"Logged in as: **{st.session_state.get('display_name', st.session_state.get('username'))}**")
-    
-    if st.sidebar.button("Logout", use_container_width=True):
-        import getpass
-        from src.application.services.session_service import SessionService
-        session_service = SessionService()
-        session_service.end_session(st.session_state.get("username"))
-        session_service.end_session(getpass.getuser())
-        st.session_state.clear()
-        st.rerun()
 
     # Role Toggle for Admins
     if st.session_state.get("original_role") == "ADMIN" or st.session_state.get("is_elevated"):

@@ -96,9 +96,10 @@ class SurveyService:
             survey['id'] = datetime.now().strftime("%Y%m%d%H%M%S")
         survey['updated_at'] = datetime.now().isoformat()
         
-        # Auto-calculate viability before saving
-        viability = self.calculate_viability(survey)
-        survey.update(viability)
+        # Auto-calculate viability only if relevant fields are present
+        if 'depositGrowth' in survey or 'advanceGrowth' in survey:
+            viability = self.calculate_viability(survey)
+            survey.update(viability)
 
         # Check if updating
         updated = False

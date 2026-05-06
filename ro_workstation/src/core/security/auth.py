@@ -5,7 +5,7 @@ import getpass
 from src.application.services.admin_service import AdminService
 from src.application.services.session_service import SessionService
 from src.core.config.config_loader import get_app_settings
-from src.domain.schemas.user import UserAccess
+from src.domain.schemas import UserAccess
 
 
 def resolve_current_user() -> UserAccess:

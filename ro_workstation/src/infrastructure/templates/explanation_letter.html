@@ -2,10 +2,23 @@
 
 {% block content %}
 <div class="letter-body" style="font-family: 'SegoeUILight', sans-serif; line-height: 1.6; margin-top: 20px; font-size: 14px; color: #1e293b;">
-    <p>To,<br>
-    <strong>The Branch Manager,</strong><br>
-    {{ branch_name }} (SOL: {{ sol }}),<br>
-    Indian Overseas Bank.</p>
+    {% if branch_head %}
+    <p style="margin-bottom: 20px; line-height: 1.5;">
+        <span class="tamil-text" style="font-size: 13px;">{{ branch_head.sal_ta }} {{ branch_head.name_ta }}</span> / 
+        <span class="hindi-text" style="font-size: 13px;">{{ branch_head.sal_hi }} {{ branch_head.name_hi }}</span> / 
+        <strong>{{ branch_head.sal_en }} {{ branch_head.name }}</strong><br>
+        <span class="tamil-text" style="font-size: 11px;">{{ branch_head.desig_ta }}</span> / 
+        <span class="hindi-text" style="font-size: 11px;">{{ branch_head.desig_hi }}</span> / 
+        <span style="font-size: 12px; font-weight: 600; text-transform: uppercase;">{{ branch_head.desig_en }}</span><br>
+        
+        Indian Overseas Bank,<br>
+        {{ branch_name }} ({{ sol }})
+    </p>
+    {% else %}
+    <p>The Branch Manager,<br>
+    Indian Overseas Bank,<br>
+    {{ branch_name }} ({{ sol }})</p>
+    {% endif %}
 
     <div class="doc-title" style="margin: 25px 0 15px 0; text-align: center;">
         <h1 style="color: #21357f; font-size: 20px; text-decoration: none; margin: 0; font-weight: 800; letter-spacing: 1px;">EXPLANATION FOR BUDGET SHORTFALL: {{ group_name.upper() }}</h1>

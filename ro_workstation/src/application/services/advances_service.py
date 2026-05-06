@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import json
 
@@ -13,6 +13,8 @@ class AdvancesService:
     # Official Bank Scheme Rules
     SCHEME_RULES = {
         'MUDRA': "SLMUD|CCMUD|CCWMS|TLWMS".split('|'),
+        'KCC': "AGKCC|KCCFL|KCCNF|KCCAG|KCCAR|KCCPO|KKISA|KCCHL".split('|'),    # ADDED: KCC schemes
+        'SHG': "CCSHG|TLSHG|AGSHG|SHGBL|SHGNF".split('|'),                       # ADDED: SHG schemes
         'HOUSING': "CCSUB|RHDEC|RHISL|RHLGJ|RHNRI|RHNRR|NRITU|NRIGN|RHPMA|RNHBL|RSPH1|RSPH2|RSUBH|STSHL|RGEWS|RHLIG|RGMI1|RGMI2|RSTOP|HOMAD|RMOGR|RAHTN|RBLTN|GNEXT|CRH01|CBH01|CEC01|HLELM|RHLG2|HLKKI|EPLOT|AHPAP|HLKKI".split('|'),
         'VEHICLE': "RPUSH|RTN2W|RVL2W|SVL2W|SVL4W|RGRVL|RGR2W".split('|'),
         'AGRI_JL': "AGEJL|AGTAJ|JLSWS|KCAJL|KCCJL".split('|'),
@@ -145,10 +147,12 @@ class AdvancesService:
             
             # --- CORE MSME ---
             if sc in self.SCHEME_RULES['MUDRA']: return 'Core MSME', 'Mudra', sc
-            if sc in self.SCHEME_RULES['GOV_SCHEME']: return 'Core MSME', 'Govt Schemes', sc
-            
-            # --- CORE AGRI ---
-            if sc in self.SCHEME_RULES['OTHER_SCHEME']: return 'Core Agri', 'Other Agri Schemes', sc
+
+            # --- CORE AGRI (Govt Sponsored Schemes belong here, NOT in Core MSME) ---
+            if sc in self.SCHEME_RULES['GOV_SCHEME']: return 'Core Agri', 'Govt Spon', sc   # FIXED: was 'Core MSME'
+            if sc in self.SCHEME_RULES['OTHER_SCHEME']: return 'Core Agri', 'Oth Schematic', sc
+            if sc in self.SCHEME_RULES['KCC']: return 'Core Agri', 'KCC', sc
+            if sc in self.SCHEME_RULES['SHG']: return 'Core Agri', 'SHG', sc
             
             # Fallback based on Priority Type or existing map
             match = self.scheme_map.get(sc.lower())
@@ -258,3 +262,74 @@ class AdvancesService:
             'stressed_assets': df[df['RISK_CATEGORY'] != 'REGULAR'].groupby('L2_SECTOR')['BALANCE_CR'].sum().nlargest(5).to_dict()
         }
         return summary
+
+    def generate_branch_wise_sanction_report(self, df, report_date, period='month'):
+        """Generate a formatted Excel report of sanctions grouped by branch and category for a specific period."""
+        import io
+        from src.application.services.master_service import MasterService
+        from src.core.utils.financial_year import get_fy_start
+        
+        # 1. Determine Date Range
+        if period == 'fy':
+            start_date = get_fy_start(report_date)
+            end_date = report_date
+            title = "Full FY"
+        elif period == 'prev_month':
+            # Last day of previous month
+            end_date = report_date.replace(day=1) - timedelta(days=1)
+            start_date = end_date.replace(day=1)
+            title = f"Previous Month ({start_date.strftime('%b %Y')})"
+        else: # Default: current month
+            start_date = report_date.replace(day=1)
+            end_date = report_date
+            title = f"Current Month ({start_date.strftime('%b %Y')})"
+
+        # Ensure OPEN_DT_NORM is datetime
+        if not pd.api.types.is_datetime64_any_dtype(df['OPEN_DT_NORM']):
+            df['OPEN_DT_NORM'] = pd.to_datetime(df['OPEN_DT_NORM'])
+            
+        mask = (df['OPEN_DT_NORM'].dt.date >= start_date) & (df['OPEN_DT_NORM'].dt.date <= end_date)
+        period_df = df[mask].copy()
+        
+        if period_df.empty:
+            return None
+            
+        # 2. Group by Branch, Category, Sector
+        grouped = period_df.groupby(['BRANCH_CODE', 'L1_CATEGORY', 'L2_SECTOR']).agg({
+            'LIMIT_CR': ['sum', 'count']
+        }).reset_index()
+        
+        # Flatten columns
+        grouped.columns = ['SOL', 'Category', 'Subdivision', 'Sanction Amount (Cr)', 'Account Count']
+        
+        # 3. Add Branch Names
+        ms = MasterService()
+        units = ms.get_units_frame()
+        # Ensure SOL is string and padded
+        grouped['SOL'] = grouped['SOL'].astype(str).str.split('.').str[0].str.zfill(4)
+        units['Code'] = units['Code'].astype(str).str.zfill(4)
+        
+        report_df = grouped.merge(units[['Code', 'Name']], left_on='SOL', right_on='Code', how='left')
+        report_df = report_df[['SOL', 'Name', 'Category', 'Subdivision', 'Sanction Amount (Cr)', 'Account Count']]
+        report_df.rename(columns={'Name': 'Branch Name'}, inplace=True)
+        report_df = report_df.sort_values(['SOL', 'Category'])
+        
+        # 4. Create Excel
+        output = io.BytesIO()
+        import datetime as dt # Ensure datetime is available for prev_month logic if not already
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Sheet 1: Branch Summary
+            sheet_name = f"Sanctions {period.upper()}"[:31] # Excel sheet name limit
+            report_df.to_excel(writer, sheet_name=sheet_name, index=False)
+            
+            # Sheet 2: Account Details
+            period_df['SOL'] = period_df['BRANCH_CODE'].astype(str).str.split('.').str[0].str.zfill(4)
+            details_df = period_df.merge(units[['Code', 'Name']], left_on='SOL', right_on='Code', how='left')
+            details_cols = ['SOL', 'Name', 'AC_NAME', 'FORACID', 'L1_CATEGORY', 'L2_SECTOR', 'LIMIT_CR', 'OPEN_DT_NORM']
+            details_df = details_df[details_cols]
+            details_df.columns = ['SOL', 'Branch Name', 'Account Name', 'Account No', 'Category', 'Subdivision', 'Amount (Cr)', 'Sanction Date']
+            # Format date for Excel
+            details_df['Sanction Date'] = details_df['Sanction Date'].dt.strftime('%d-%m-%Y')
+            details_df.to_excel(writer, sheet_name='Detailed Sanctions', index=False)
+            
+        return output.getvalue()

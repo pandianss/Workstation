@@ -119,7 +119,6 @@ def render_circular_management_tab(circ_service, doc_service):
                         )
     else:
         st.info("No published circulars found.")
-d circulars found.")
 
 def render_office_note_tab(doc_service, get_master_service):
     st.subheader("Trilingual Office Note Generator")
@@ -136,8 +135,8 @@ def render_office_note_tab(doc_service, get_master_service):
         
         exec_list = get_master_service().get_ro_executives()
         exec_options = {e["roll"]: e["name"] for e in exec_list}
-        selected_sig_rolls = st.multiselect("Additional Signatories", options=list(exec_options.keys()), format_func=lambda x: exec_options[x])
-        signatories = [exec_options[r] for r in selected_sig_rolls]
+        selected_sig_rolls = st.multiselect("Signing Authorities (Scale IV & Above)", options=list(exec_options.keys()), format_func=lambda x: exec_options[x], help="Select one or more executives to sign the office note.")
+        signatories = selected_sig_rolls
         
         intro = st.text_area("Introduction / Context", height=100)
         obs = st.text_area("Observations / Technical Details", height=150)

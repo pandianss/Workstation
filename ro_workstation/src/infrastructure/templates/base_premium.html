@@ -68,12 +68,20 @@
             font-stretch: condensed !important;
             letter-spacing: -0.2px !important;
         }
+        .bank-name-ta, .office-label-ta {
+            font-size: calc(1em - 1.5pt) !important;
+            white-space: nowrap;
+        }
+        .address-ta {
+            font-size: calc(1em - 0.5pt) !important;
+        }
         .bank-name-hi, .office-label-hi, .address-hi, .hindi-text {
             font-family: 'GoogleSans', 'NotoSansDevanagari', sans-serif !important;
+            font-size: calc(1em + 0.5pt) !important;
         }
 
         body { 
-            font-family: 'GoogleSans', 'Segoe UI', Tahoma, sans-serif; 
+            font-family: 'Century Gothic', 'GoogleSans', 'Segoe UI', Tahoma, sans-serif; 
             margin: 0;
             padding: 0;
             background-color: white;
@@ -148,6 +156,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-right: 1px solid rgba(255,255,255,0.2);
+            font-family: Arial, sans-serif;
         }
 
         .info-header-item:last-child {
@@ -179,6 +188,7 @@
         .address-text {
             line-height: 1.4;
             font-size: 11px;
+            font-family: Arial, sans-serif;
         }
 
         /* Contact Row */
@@ -441,11 +451,13 @@
         {% block footer %}
         <div class="footer">
             <div class="signatories-row">
+                {% if prepared_by %}
                 <div class="signatory-col">
                     <div class="signature-space">Sd/-</div>
                     <div class="sig-name-en">({{ prepared_by }})</div>
                     <div class="sig-trilingual">Prepared By</div>
                 </div>
+                {% endif %}
                 {% for sig in signatories %}
                 <div class="signatory-col">
                     <div class="signature-space">Sd/-</div>

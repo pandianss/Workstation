@@ -134,3 +134,25 @@
     background-color: rgba(33, 53, 127, 0.3) !important;
     color: var(--text-primary) !important;
 }
+
+/* 🚀 Top Bar & Layout Overrides */
+[data-testid="stHeader"] {
+    display: none !important;
+}
+
+.main .block-container {
+    padding-top: 0.5rem !important;
+    padding-bottom: 2rem !important;
+}
+
+.top-bar-container {
+    background: linear-gradient(90deg, #1e1e2e 0%, #252538 100%);
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}

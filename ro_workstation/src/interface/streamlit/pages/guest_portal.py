@@ -27,9 +27,9 @@ def render() -> None:
         # 2. Key Regional Metrics
         st.markdown("### 📊 Regional Business Snapshot")
         render_premium_metrics({
-            "Total Deposits": f"₹ {latest_data['Total Deposits'].sum():,.2f} Cr",
-            "Total Advances": f"₹ {latest_data['Total Advances'].sum():,.2f} Cr",
-            "CD Ratio": f"{latest_data['CD Ratio'].mean():.2f}%",
+            "Total Deposits": f"₹ {latest_data['TOTAL DEPOSITS'].sum():,.2f} Cr",
+            "Total Advances": f"₹ {latest_data['TOTAL ADVANCES'].sum():,.2f} Cr",
+            "CD Ratio": f"{latest_data['CD RATIO'].mean():.2f}%",
             "Low Cost (CASA)": f"{latest_data['CASA'].sum():,.2f} Cr",
         })
 
@@ -39,8 +39,8 @@ def render() -> None:
         st.markdown("### 📈 Performance Trajectory")
         from src.core.utils.financial_year import get_fy_start
         fy_start = pd.to_datetime(get_fy_start(datetime.date.today()))
-        hist = data[data["DATE"] >= fy_start].groupby("DATE")[["Total Deposits", "Total Advances"]].sum().reset_index()
-        render_chart_container(hist, "DATE", ["Total Deposits", "Total Advances"], "Regional Business Growth (Current FY)")
+        hist = data[data["DATE"] >= fy_start].groupby("DATE")[["TOTAL DEPOSITS", "TOTAL ADVANCES"]].sum().reset_index()
+        render_chart_container(hist, "DATE", ["TOTAL DEPOSITS", "TOTAL ADVANCES"], "Regional Business Growth (Current FY)")
 
     # 4. District Coverage & Network
     st.divider()

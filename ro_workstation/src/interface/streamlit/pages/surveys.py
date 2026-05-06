@@ -20,7 +20,7 @@ def render() -> None:
     # 1. Active Surveys
     with tabs[0]:
         st.subheader("Active Regional Surveys")
-        surveys = service.list_surveys()
+        surveys = service.get_all()
         if surveys:
             for survey in surveys:
                 with st.container():
@@ -114,7 +114,7 @@ def render() -> None:
             deadline = st.date_input("Deadline")
             form_url = st.text_input("Form URL (e.g., MS Forms)")
             if st.form_submit_button("Deploy to Network"):
-                service.create_survey({
+                service.save_survey({
                     "title": title,
                     "deadline": deadline.strftime("%Y-%m-%d"),
                     "status": "Open",

@@ -22,6 +22,9 @@ class DocumentService:
         self.template_dir = project_path("src", "infrastructure", "templates")
         self.env = Environment(loader=FileSystemLoader(str(self.template_dir)))
         
+        from src.core.registry.parameter_service import ParameterRegistry
+        self.registry = ParameterRegistry()
+        
         # Add custom filters for INR formatting
         def format_inr(value):
             try:
@@ -41,47 +44,62 @@ class DocumentService:
         self.env.filters['format_inr_k'] = format_inr_k
         self.bank_founding_date = datetime.date(1937, 2, 10)
         self.assets_dir = project_path("src", "assets")
-        self.org_data = {}
-
+        
+        # 1. Initialize core org data from Central Registry (Defaults)
+        org = self.registry.get_org_info()
+        contact = self.registry.get_contact_info()
+        
+        # 2. Attempt Override from Master Data (Single Source of Truth for Units)
         try:
             from src.infrastructure.persistence.master_repository import MasterRepository
-            repo = MasterRepository()
-            ro_record = next((r for r in repo.get_by_category("UNIT") if r.code == "3933"), None)
-            
-            def format_address(addr, marker):
-                if not addr: return ""
-                addr = str(addr)
-                if marker in addr:
-                    parts = addr.split(marker, 1)
-                    return f"{parts[0]}{marker},<br/>{parts[1].lstrip(', ')}"
-                return addr.replace(", ", ",<br/>")
-
+            m_repo = MasterRepository()
+            ro_record = next((r for r in m_repo.get_by_category("UNIT") if r.code == "3933"), None)
             if ro_record:
-                meta = ro_record.metadata or {}
-                self.org_data = {
-                    "bankNameEn": "INDIAN OVERSEAS BANK",
-                    "bankNameHi": "इण्डियन ओवरसीज़ बैंक",
-                    "bankNameTa": "இண்டியன் ஓவர்சீஸ் வங்கி",
-                    "officeNameEn": ro_record.name_en or "REGIONAL OFFICE, DINDIGUL",
-                    "officeNameHi": ro_record.name_hi or "क्षेत्रीय कार्यालय, डिंडिगुल",
-                    "officeNameTa": ro_record.name_local or "மண்டல அலுவலகம், திண்டுக்கல்",
-                    "addressEnFormatted": format_address(meta.get('address') or '80 Feet Road, Near Spencer Compound, Dindigul - 624001', "Dindigul"),
-                    "addressHiFormatted": format_address(meta.get('addressHi') or '80 फीट रोड, स्पेंसर कंपाउंड के पास, डिंडीगुल - 624001', "डिंडीगुल"),
-                    "addressTaFormatted": format_address(meta.get('addressTa') or '80 அடி சாலை, ஸ்பென்சர் காம்பவுண்ட் அருகில், திண்டுக்கல் - 624001', "திண்டுக்கல்"),
-                    "phone": meta.get('phone', '0451-2422242'),
-                    "email": meta.get('email', 'rodindigul@iob.in'),
-                    "website": "www.iob.in",
-                    "headRoll": str(meta.get('headUserId')) if meta.get('headUserId') else None
-                }
+                m_meta = ro_record.metadata or {}
+                # Update trilingual names from Master if present
+                org["office_name"]["en"] = ro_record.name_en or org["office_name"]["en"]
+                org["office_name"]["hi"] = ro_record.name_hi or org["office_name"]["hi"]
+                org["office_name"]["ta"] = ro_record.name_local or org["office_name"]["ta"]
+                
+                # Update trilingual addresses from Master if present
+                contact["address"]["en"] = m_meta.get("address") or contact["address"]["en"]
+                contact["address"]["hi"] = m_meta.get("address_hi") or contact["address"]["hi"]
+                contact["address"]["ta"] = m_meta.get("address_ta") or contact["address"]["ta"]
+                
+                # Update contact details from Master if present
+                contact["phone"] = m_meta.get("phone") or contact["phone"]
+                contact["email"] = m_meta.get("email") or contact["email"]
+                contact["website"] = m_meta.get("website") or contact["website"]
         except Exception as e:
-            print(f"Error initializing DocumentService: {e}")
+            print(f"Master Data override failed: {e}")
 
-        # Fallback to organization.json if units.csv didn't provide data
-        if not self.org_data:
-            org_path = project_path("data", "organization.json")
-            if org_path.exists():
-                with org_path.open("r", encoding="utf-8") as f:
-                    self.org_data = json.load(f)
+        def format_address(addr, marker):
+            if not addr: return ""
+            addr = str(addr).replace("<br/>", "").replace("<br>", "").replace("\n", " ").strip()
+            # Clean up double spaces or trailing commas before logic
+            addr = ", ".join([p.strip() for p in addr.split(",") if p.strip()])
+            
+            if marker in addr:
+                parts = addr.split(marker, 1)
+                # Ensure marker has its comma, then add the break
+                return f"{parts[0]}{marker},<br/>{parts[1].lstrip(', ')}"
+            return addr
+
+        self.org_data = {
+            "bankNameEn": org["bank_name"]["en"],
+            "bankNameHi": org["bank_name"]["hi"],
+            "bankNameTa": org["bank_name"]["ta"],
+            "officeNameEn": org["office_name"]["en"],
+            "officeNameHi": org["office_name"]["hi"],
+            "officeNameTa": org["office_name"]["ta"],
+            "addressEnFormatted": format_address(contact["address"]["en"], "Pensioner Street"),
+            "addressHiFormatted": format_address(contact["address"]["hi"], "पेंशनर स्ट्रीट"),
+            "addressTaFormatted": format_address(contact["address"]["ta"], "பென்ஷனர் தெரு"),
+            "phone": contact["phone"],
+            "email": contact["email"],
+            "website": contact["website"],
+            "headRoll": org.get("head_user_id")
+        }
 
         # Load Logo as Base64 (src/assets/doc_min.svg) - SSOT for Branding
         import base64
@@ -226,10 +244,23 @@ class DocumentService:
             found = next((s for s in staff_records if s.code == identifier or s.name_en == identifier or f"{s.name_en} ({s.metadata.get('designation')})" == identifier), None)
             if found:
                 meta = found.metadata or {}
+                
+                # Prioritize metadata-based trilingual designations (populated by MasterService)
+                if meta.get("desig_hi") and meta.get("desig_ta"):
+                    return {
+                        "name": found.name_en, 
+                        "name_hi": found.name_hi or found.name_en, 
+                        "name_ta": found.name_local or found.name_en,
+                        "roll": found.code, 
+                        "desig_en": meta.get("desig_en", meta.get("designation", "Manager")),
+                        "desig_hi": meta.get("desig_hi"), 
+                        "desig_ta": meta.get("desig_ta")
+                    }
+
                 raw_desig = str(meta.get("designation", "")).upper()
                 grade = str(meta.get("grade", "")).upper()
                 
-                # Precise IOB Grade-to-Designation Mapping
+                # Precise IOB Grade-to-Designation Mapping (Legacy fallback)
                 if "VI" in grade: # Scale VI - Chief Regional Manager
                     desig = DESIG_MAP["CHIEF REGIONAL MANAGER"]
                 elif "V" in grade and "IV" not in grade: # Scale V - Senior Regional Manager
@@ -364,6 +395,7 @@ class DocumentService:
             "performance_appreciation.html",
             branch_name=performance["branch_name"],
             sol=performance["sol"],
+            branch_head=performance.get("branch_head"),
             achievements=performance["achievements"],
             group_name=performance.get("group_name", "Budget"),
             month_year=month_year,
@@ -383,6 +415,7 @@ class DocumentService:
             "explanation_letter.html",
             branch_name=performance["branch_name"],
             sol=performance["sol"],
+            branch_head=performance.get("branch_head"),
             declines=performance["declines"],
             group_name=performance.get("group_name", "Budget"),
             month_year=month_year,
@@ -487,3 +520,23 @@ class DocumentService:
         )
         return self._html_to_pdf(html)
 
+    def generate_budget_communication(self, payload: dict) -> bytes:
+        """Generates a budget communication letter for the FY."""
+        # Standardize signatory if not provided
+        if not payload.get("signatory"):
+            head_roll = self.org_data.get("headRoll") or "63039"
+            payload["signatory"] = self._resolve_staff_profile(head_roll)
+            
+        html = self._render_template(
+            "budget_communication.html",
+            branch_name=payload["branch_name"],
+            sol=payload["sol"],
+            branch_head=payload.get("branch_head"),
+            budget_groups=payload["budget_groups"],
+            months=payload.get("months", []),
+            fy_range=payload.get("fy_range", "2026-27"),
+            signatory=payload["signatory"],
+            ref_no=f"RO/DGL/MIS/BUD/{payload['sol']}/{datetime.date.today().year}",
+            date=payload.get("date", datetime.date.today().strftime("%d.%m.%Y"))
+        )
+        return self._html_to_pdf(html)

@@ -30,24 +30,24 @@ def render() -> None:
                 latest = br_data.sort_values("DATE").iloc[-1]
                 st.markdown(f"#### 📊 {branch_name} Performance")
                 render_premium_metrics({
-                    "Total Deposits": f"₹ {latest['Total Deposits']:,.2f} Cr",
-                    "Total Advances": f"₹ {latest['Total Advances']:,.2f} Cr",
-                    "CASA Ratio": f"{(latest['CASA']/latest['Total Deposits']*100):.2f}%" if latest['Total Deposits'] > 0 else "0%",
+                    "Total Deposits": f"₹ {latest['TOTAL DEPOSITS']:,.2f} Cr",
+                    "Total Advances": f"₹ {latest['TOTAL ADVANCES']:,.2f} Cr",
+                    "CASA Ratio": f"{(latest['CASA']/latest['TOTAL DEPOSITS']*100):.2f}%" if latest['TOTAL DEPOSITS'] > 0 else "0%",
                     "NPA %": f"{latest['NPA %']}%",
                 })
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 # Comparison with Region
-                reg_avg = data[data["DATE"] == latest["DATE"]]["Total Deposits"].mean()
-                st.caption(f"Branch Deposit: ₹{latest['Total Deposits']:.2f} Cr vs Regional Avg: ₹{reg_avg:.2f} Cr")
+                reg_avg = data[data["DATE"] == latest["DATE"]]["TOTAL DEPOSITS"].mean()
+                st.caption(f"Branch Deposit: ₹{latest['TOTAL DEPOSITS']:.2f} Cr vs Regional Avg: ₹{reg_avg:.2f} Cr")
 
                 # Trend Chart (Current FY)
                 st.markdown("#### 📈 Branch Business Trend")
                 from src.core.utils.financial_year import get_fy_start
                 fy_start = pd.to_datetime(get_fy_start(datetime.date.today()))
-                br_hist = br_data[br_data["DATE"] >= fy_start].groupby("DATE")[["Total Deposits", "Total Advances"]].sum().reset_index()
+                br_hist = br_data[br_data["DATE"] >= fy_start].groupby("DATE")[["TOTAL DEPOSITS", "TOTAL ADVANCES"]].sum().reset_index()
                 from src.interface.streamlit.components.primitives import render_chart_container
-                render_chart_container(br_hist, "DATE", ["Total Deposits", "Total Advances"], f"{branch_name} Growth (Current FY)")
+                render_chart_container(br_hist, "DATE", ["TOTAL DEPOSITS", "TOTAL ADVANCES"], f"{branch_name} Growth (Current FY)")
             else:
                 st.warning(f"No MIS data found for SOL {sol_id}.")
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import datetime
 
 from src.application.use_cases.mis.service import MISAnalyticsService
 from src.core.utils.financial_year import get_fy_start
@@ -11,16 +12,69 @@ from src.infrastructure.persistence.database import get_db_session
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_premium_metrics, render_chart_container
 from src.application.services.milestone_service import MilestoneService
 from src.application.services.performance_letter_service import PerformanceLetterService
+from src.application.services.master_service import MasterService
+from src.application.services.graphic_service import GraphicService
+from src.core.paths import project_path
 
 def render() -> None:
     service = MISAnalyticsService()
-    # 1. Base Data Load
+    letter_service = PerformanceLetterService()
+    # 1. Page Title
+    render_action_bar("Regional MIS Analytics", ["Market Share", "Budget Tracking", "NPA Surveillance"])
+    
+    # ─── DATA INGESTION HUB ──────────────────────────────────────────────
+    with st.expander("🛠️ Data Maintenance Hub", expanded=False):
+        st.caption("Upload source files to update regional database.")
+        
+        up_col1, up_col2 = st.columns(2)
+        with up_col1:
+            # MIS Data Ingestion
+            mis_file = st.file_uploader("📊 MIS Performance (.xlsx)", type=["xlsx"])
+            if mis_file:
+                mis_dir = project_path("data", "mis")
+                mis_dir.mkdir(parents=True, exist_ok=True)
+                with open(mis_dir / mis_file.name, "wb") as f:
+                    f.write(mis_file.getbuffer())
+                st.success(f"MIS File '{mis_file.name}' uploaded! Processing...")
+                service.sync_database() # Trigger DB sync
+                st.rerun()
+
+            # Budget Data Ingestion
+            budget_file = st.file_uploader("🎯 Budget Targets (.csv)", type=["csv"])
+            if budget_file:
+                target_path = project_path("files", "Budget3.csv")
+                with open(target_path, "wb") as f:
+                    f.write(budget_file.getbuffer())
+                st.success("Budget3.csv updated! Syncing targets...")
+                letter_service.budget_repo.sync_if_needed()
+                st.rerun()
+
+        with up_col2:
+            # Staff Data Ingestion
+            staff_file = st.file_uploader("👥 Staff Registry (.csv)", type=["csv"])
+            if staff_file:
+                target_path = project_path("files", "Staff.csv")
+                with open(target_path, "wb") as f:
+                    f.write(staff_file.getbuffer())
+                MasterService().sync_staff_from_csv()
+                st.success("Staff Registry updated with history preservation!")
+                st.rerun()
+
+            # Branch Data Ingestion
+            branch_file = st.file_uploader("🏢 Branch Master (.csv)", type=["csv"])
+            if branch_file:
+                target_path = project_path("files", "branches.csv")
+                with open(target_path, "wb") as f:
+                    f.write(branch_file.getbuffer())
+                MasterService().sync_units_from_csv()
+                st.success("Branch Master updated and database synchronized!")
+                st.rerun()
+    
+    # ─── BASE DATA LOAD ────────────────────────────────────────────────────
     df = service.get_data()
     if df.empty:
-        st.error("No MIS data found. Please upload .xlsx files to the `data/mis/` folder.")
+        st.error("No MIS data found. Please use the Maintenance Hub above to upload MIS files.")
         return
-
-    render_action_bar("Regional MIS Analytics", ["Market Share", "Budget Tracking", "NPA Surveillance"])
     
     # 2. Global Filters
     dates = sorted(df["DATE"].dt.date.unique())
@@ -98,7 +152,7 @@ def render() -> None:
                 """, unsafe_allow_html=True)
 
     # Visualization Layer
-    tabs = st.tabs(["📊 Business Trends", "🏦 Advances Portfolio", "🏆 Milestones Record"])
+    tabs = st.tabs(["📊 Business Trends", "🏦 Advances Portfolio", "🏆 Milestones Record", "📬 Budget Communication"])
     
     with tabs[0]:
         col_chart, col_table = st.columns([1.5, 1])
@@ -236,6 +290,44 @@ def render() -> None:
                         'Qtr Cnt': '{:,}',
                         'FY Cnt': '{:,}'
                     }))
+                    
+                    # Download Branch-wise reports
+                    st.markdown("---")
+                    st.markdown("##### 📥 Download Branch-wise Analysis")
+                    d_col1, d_col2, d_col3 = st.columns(3)
+                    
+                    with d_col1:
+                        m_report = adv_service.generate_branch_wise_sanction_report(adv_df, selected_report_dt, period='month')
+                        if m_report:
+                            st.download_button(
+                                label="This Month",
+                                data=m_report,
+                                file_name=f"Sanctions_MTD_{selected_report_dt.strftime('%b_%Y')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+                    
+                    with d_col2:
+                        pm_report = adv_service.generate_branch_wise_sanction_report(adv_df, selected_report_dt, period='prev_month')
+                        if pm_report:
+                            st.download_button(
+                                label="Prev Month",
+                                data=pm_report,
+                                file_name=f"Sanctions_PrevMth_{selected_report_dt.strftime('%b_%Y')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+                    
+                    with d_col3:
+                        fy_report = adv_service.generate_branch_wise_sanction_report(adv_df, selected_report_dt, period='fy')
+                        if fy_report:
+                            st.download_button(
+                                label="Full FY",
+                                data=fy_report,
+                                file_name=f"Sanctions_FY_{selected_report_dt.strftime('%Y')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
 
             col_a, col_b = st.columns(2)
             with col_a:
@@ -298,7 +390,7 @@ def render() -> None:
                 st.download_button(
                     "📥 Download Report",
                     data=st.session_state["milestone_pdf"],
-                    file_name=f"Milestones_Record_{snapshot.selected_date}.pdf",
+                    file_name=f"Milestone_Report_{snapshot.selected_date}.pdf",
                     mime="application/pdf",
                     use_container_width=True
                 )
@@ -321,7 +413,6 @@ def render() -> None:
                                 st.success(f"Successfully recorded {saved_count} new breakthroughs!")
                             
                             # Generate letters and posters
-                            from src.application.services.graphic_service import GraphicService
                             graphic_srv = GraphicService()
                             
                             import io, zipfile
@@ -329,7 +420,7 @@ def render() -> None:
                             with zipfile.ZipFile(zip_buffer, "w") as zf:
                                 for i, b in enumerate(snapshot.milestone_breakthroughs):
                                     # PDF Letter
-                                    pdf = doc_service.generate_appreciation_letter(b)
+                                    pdf = doc_service.generate_performance_appreciation(b)
                                     pdf_name = f"Appreciation_{b['branch_name'].replace(' ', '_')}_{b['parameter']}.pdf"
                                     zf.writestr(f"Letters/{pdf_name}", pdf)
                                     
@@ -352,19 +443,16 @@ def render() -> None:
                 b_df = pd.DataFrame(snapshot.milestone_breakthroughs)
                 cols_to_show = ["branch_name", "parameter", "previous_value", "value", "milestone"]
                 b_display = b_df[cols_to_show].copy()
-                # Rounding before renaming for stability
                 b_display["previous_value"] = b_display["previous_value"].map(lambda x: f"{x:.2f}")
                 b_display["value"] = b_display["value"].map(lambda x: f"{x:.2f}")
 
                 p_dt = b_df["prev_date"].iloc[0].strftime("%d-%b") if "prev_date" in b_df.columns and not b_df.empty else "Prev"
                 c_dt = b_df["date"].iloc[0].strftime("%d-%b") if "date" in b_df.columns and not b_df.empty else "Curr"
                 b_display.columns = ["Branch", "Parameter", f"Value {p_dt} (Cr)", f"Value {c_dt} (Cr)", "New Milestone"]
-                
                 st.table(b_display)
         
         if snapshot.milestones:
             m_df_raw = pd.DataFrame(snapshot.milestones)
-            
             col_f1, col_f2 = st.columns(2)
             with col_f1:
                 selected_param = st.multiselect("Filter Parameters", params_avail, default=[])
@@ -372,7 +460,6 @@ def render() -> None:
                 levels_avail = sorted(m_df_raw["milestone"].unique())
                 selected_levels = st.multiselect("Filter Milestones", levels_avail, default=[])
 
-            # Apply filters
             filtered_df = m_df_raw.copy()
             if selected_param:
                 filtered_df = filtered_df[filtered_df["parameter"].isin(selected_param)]
@@ -381,36 +468,105 @@ def render() -> None:
 
             if not filtered_df.empty:
                 st.markdown(f"#### Milestones Inventory")
-                
-                # Format for display
                 display_df = filtered_df[["sol", "branch_name", "parameter", "value", "milestone"]].copy()
                 display_df.columns = ["SOL", "Branch", "Parameter", "Value (Cr)", "Milestone"]
                 display_df["Value (Cr)"] = display_df["Value (Cr)"].map(lambda x: f"{x:.2f}")
-                
                 st.dataframe(display_df.sort_values(["Milestone", "Value (Cr)"], ascending=False), hide_index=True, use_container_width=True)
-            else:
-                st.info("No branches matching the selection have reached milestones.")
             
-            # Global Milestones Summary Chart
             st.divider()
             st.markdown("#### Achievement Heatmap (Parameter vs Level)")
             summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df.sort_values("Total Milestones", ascending=False), hide_index=True, use_container_width=True)
 
-        else:
-            st.warning("Milestone data not available.")
+    with tabs[3]:
+        letter_service = PerformanceLetterService()
+        
+        st.subheader("📬 Regional Communication Center")
+        
+        # --- Section 1: Budget Communication ---
+        st.markdown("### 🎯 Annual Budget Communication")
+        
+        status = letter_service.budget_repo.get_sync_status()
+        st.caption(f"🛡️ **Data Maintenance:** Last synced on {status['last_sync']} | FYs available: {', '.join(status['fy_ranges'])}")
+        
+        st.info("Generate formal budget communication letters for all parameters defined in the registry.")
+        
+        # FY & Communication Date
+        fcol1, fcol2 = st.columns(2)
+        with fcol1:
+            selected_fy = st.selectbox("Target Fiscal Year", options=status["fy_ranges"], index=len(status["fy_ranges"])-1 if status["fy_ranges"] else 0)
+        with fcol2:
+            comm_date = st.date_input("Date of Communication", value=datetime.date.today())
+        
+        # Convert selected_fy (e.g. "2026-27") to a date (2026-04-01) for target retrieval
+        try:
+            fy_start_year = int(selected_fy.split("-")[0])
+            fy_ref_date = datetime.date(fy_start_year, 4, 1)
+        except:
+            fy_ref_date = selected_date
+            
+        exec_list = MasterService().get_ro_executives()
+        exec_options = {e["roll"]: e["name"] for e in exec_list}
+        selected_sig_roll = st.selectbox("Signing Authority (Budget)", options=list(exec_options.keys()), format_func=lambda x: exec_options[x], key="budget_sig")
+        
+        if st.button("🚀 Generate Budget Letters (ZIP)", use_container_width=True):
+            budget_data = letter_service.get_budget_communication_data(fy_ref_date)
+            if not budget_data:
+                st.error(f"No budget data found for {selected_fy}.")
+            else:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                def update_progress(pct, msg):
+                    try:
+                        progress_bar.progress(pct)
+                        status_text.text(msg)
+                        return True
+                    except: return False
+                
+                signatory_profile = letter_service.doc_service._resolve_staff_profile(selected_sig_roll)
+                formatted_comm_date = comm_date.strftime("%d.%m.%Y")
+                zip_bytes = letter_service.generate_budget_zip(
+                    budget_data, 
+                    signatory_profile, 
+                    progress_callback=update_progress,
+                    comm_date=formatted_comm_date
+                )
+                
+                progress_bar.empty()
+                status_text.empty()
+                if zip_bytes:
+                    st.success(f"Generated budget letters for {len(budget_data)} branches!")
+                    st.download_button("📥 Download Budget Letters ZIP", data=zip_bytes, file_name=f"Budget_Communication_{selected_fy}.zip", mime="application/zip", use_container_width=True)
 
         st.divider()
-        st.subheader("📬 Performance Communication Center")
-        st.caption("Generate mass appreciation and explanation letters based on budget performance.")
         
-        perf_service = PerformanceLetterService()
-        performance_data = perf_service.get_branch_performance(snapshot.selected_date)
+        # --- Section 2: Performance Letters ---
+        perf_header_col1, perf_header_col2 = st.columns([3, 1])
+        with perf_header_col1:
+            st.markdown("### 📈 Monthly Performance Communication")
+            st.caption("Generate mass appreciation and explanation letters based on budget performance.")
+        
+        with perf_header_col2:
+            # Group available dates by Month-Year for selection
+            month_options = {}
+            for d in reversed(dates):
+                m_key = d.strftime("%B %Y")
+                if m_key not in month_options:
+                    month_options[m_key] = d # Keep the latest date for that month
+            
+            # Default to the month of the globally selected date
+            current_m_key = selected_date.strftime("%B %Y")
+            default_idx = list(month_options.keys()).index(current_m_key) if current_m_key in month_options else 0
+            
+            selected_perf_month_key = st.selectbox("Target Month", options=list(month_options.keys()), index=default_idx, key="perf_month_picker")
+            perf_date = month_options[selected_perf_month_key]
+
+        performance_data = letter_service.get_branch_performance(perf_date)
         
         if performance_data:
             with st.expander("📝 Review Monthly Performance Status", expanded=False):
                 for p in performance_data:
-                    # Flatten groups for UI summary
                     all_achievements = []
                     all_declines = []
                     for g_data in p.get("groups", {}).values():
@@ -419,35 +575,41 @@ def render() -> None:
 
                     status_col, name_col, details_col = st.columns([1, 2, 4])
                     with status_col:
-                        if all_achievements and not all_declines:
-                            st.success("EXCELLENT")
-                        elif all_achievements and all_declines:
-                            st.warning("MIXED")
-                        else:
-                            st.error("ACTION REQ")
-                    with name_col:
-                        st.markdown(f"**{p['branch_name']}** ({p['sol']})")
+                        if all_achievements and not all_declines: st.success("EXCELLENT")
+                        elif all_achievements and all_declines: st.warning("MIXED")
+                        else: st.error("ACTION REQ")
+                    with name_col: st.markdown(f"**{p['branch_name']}** ({p['sol']})")
                     with details_col:
                         ach_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in all_achievements[:3]]
-                        if len(all_achievements) > 3: ach_tags.append("...")
                         dec_tags = [f"{a['parameter']} ({a['pct']:.0f}%)" for a in all_declines[:3]]
-                        if len(all_declines) > 3: dec_tags.append("...")
-                        
                         if ach_tags: st.markdown(f"✅ {', '.join(ach_tags)}")
                         if dec_tags: st.markdown(f"⚠️ {', '.join(dec_tags)}")
 
+            selected_sig_roll_perf = st.selectbox("Signing Authority (Performance)", options=list(exec_options.keys()), format_func=lambda x: exec_options[x], key="perf_sig")
+            selected_signatory = next((e for e in exec_list if e["roll"] == selected_sig_roll_perf), None)
+
             if st.button("📦 Generate All Performance Letters (ZIP)", use_container_width=True):
-                with st.spinner("Preparing bulk letters..."):
-                    zip_data = perf_service.generate_letters_zip(performance_data)
-                    st.download_button(
-                        "📥 Download Performance Kit",
-                        data=zip_data,
-                        file_name=f"Performance_Letters_{snapshot.selected_date}.zip",
-                        mime="application/zip",
-                        use_container_width=True
+                if not selected_signatory: st.error("Please select a signatory.")
+                else:
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    def update_progress_perf(pct, msg):
+                        progress_bar.progress(pct)
+                        status_text.text(msg)
+                    
+                    zip_data = letter_service.generate_letters_zip(
+                        performance_data, 
+                        signatory=selected_signatory,
+                        progress_callback=update_progress_perf
                     )
+                    
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.success(f"Generated performance letters for {len(performance_data)} branches!")
+                    st.download_button("📥 Download Performance Kit", data=zip_data, file_name=f"Performance_Letters_{snapshot.selected_date}.zip", mime="application/zip", use_container_width=True)
         else:
-            st.info("No performance data available for this date.")
+            st.info("No performance data available.")
 
     # Full Data View
     with st.expander("📋 Detailed MIS Inventory"):

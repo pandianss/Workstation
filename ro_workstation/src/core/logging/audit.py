@@ -19,6 +19,23 @@ class AuditLogger:
         with self.file_path.open("a", encoding="utf-8") as handle:
             handle.write(f"{datetime.now().isoformat()} | {user} | {action}\n")
 
+    def get_frequent_pages(self, user: str, limit: int = 3) -> list[str]:
+        df = self.to_frame()
+        if df.empty:
+            return []
+        
+        # Filter by user and "Viewed page" actions
+        user_df = df[df["User"] == user]
+        page_views = user_df[user_df["Action"].str.contains("Viewed page", na=False)]
+        
+        if page_views.empty:
+            return []
+            
+        # Extract page names
+        page_views["Page"] = page_views["Action"].str.replace("Viewed page ", "", regex=False)
+        top_pages = page_views["Page"].value_counts().head(limit).index.tolist()
+        return top_pages
+
     def to_frame(self) -> pd.DataFrame:
         if not self.file_path.exists():
             return pd.DataFrame(columns=["Timestamp", "User", "Action"])

@@ -1,6 +1,4 @@
-from src.domain.schemas.guardian import GuardianFollowUp
-from src.domain.schemas.task import TaskCreate, TaskRead
-from src.domain.schemas.user import UserAccess
+from src.domain.schemas import GuardianFollowUp, TaskCreate, TaskRead, UserAccess
 
 __all__ = [
     "GuardianFollowUp",

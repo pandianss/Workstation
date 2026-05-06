@@ -14,46 +14,9 @@ class BudgetRepository:
         self.excel_path = project_path().parent / "samples" / "budgets2.xlsx"
         self.db_path = project_path("data", "mis_store.db")
         
-        # Mapping from MIS Enriched Names (Uppercase) to Excel Budget PARAMETER codes
-        # Keys are uppercase MIS column names (after enrichment).
-        # Values are the PARAMETER codes used in the budget Excel file.
-        #
-        # NOTE: "TOTAL DEPOSITS" is NOT "TD".
-        #   - TD in budget Excel = Term Deposit target only.
-        #   - Total Deposits = CASA + TD (SB + CD + TD).
-        #   - The budget Excel should have a separate "Tot Dep" code (or sum CASA+TD at query time).
-        #   - Letters are generated separately for CASA group and TD group — not a combined Total Deposits group.
-        self.param_map = {
-            "TOTAL ADVANCES": "Adv",
-            "TOTAL DEPOSITS": "Tot_Dep",
-            "CASA": "CASA",
-            "NPA": "NPA",
-            "SB": "SB",
-            "CD": "CD",
-            "TD": "TD",
-            "RET TD": "Ret_TD",
-            "ADV": "Adv",
-            "BUS": "Bus",
-            "CORE AGRI": "Core_Agri",
-            "AGRI JL": "Agri_JL",
-            "GOLD": "Gold",
-            "HOUSING": "HL",
-            "VEHICLE": "VL",
-            "PERSONAL": "PL",
-            "MORTGAGE": "Mort",
-            "EDUCATION": "EL",
-            "LIQUIRENT": "Liq",
-            "OTHER RETAIL": "OthRet",
-            "MSME": "MSME",
-            "SHG": "SHG",
-            "KCC": "KCC",
-            "MUDRA": "Mudra",
-            "GOVT SPON": "Gov",
-            "OTH SCHEMATIC": "OthSch",
-            "CORE RETAIL": "Core Ret",
-            "TOTAL RETAIL": "Ret",
-            "RETAIL JL": "Ret-Gold"
-        }
+        from src.core.registry.parameter_service import ParameterRegistry
+        self.registry = ParameterRegistry()
+        self.param_map = self.registry.get_mis_to_budget_map()
 
         self.engine = create_engine(f"sqlite:///{self.db_path.as_posix()}")
         Base.metadata.create_all(self.engine)
@@ -68,62 +31,55 @@ class BudgetRepository:
         self.sync_if_needed()
 
     def sync_if_needed(self):
-        """Checks if Excel was modified since last ingestion and re-syncs if needed."""
-        if not self.excel_path.exists():
+        """Checks if CSV was modified since last ingestion and re-syncs if needed."""
+        csv_path = project_path().parent / "files" / "Budget3.csv"
+        if not csv_path.exists():
             return
 
-        file_mtime = os.path.getmtime(self.excel_path)
-        file_size = os.path.getsize(self.excel_path)
+        file_mtime = os.path.getmtime(csv_path)
+        file_size = os.path.getsize(csv_path)
         
-        # Store sync state in a tiny JSON sidecar or just check table count
-        # For simplicity, we'll re-sync if the file is newer than the last recorded sync
         sync_meta_path = project_path("data", "budget_sync.json")
-        last_sync = 0
         if os.path.exists(sync_meta_path):
             try:
                 with open(sync_meta_path, 'r') as f:
                     import json
                     meta = json.load(f)
-                    last_sync = meta.get("mtime", 0)
-                    last_size = meta.get("size", 0)
-                    if last_sync == file_mtime and last_size == file_size:
+                    if meta.get("mtime") == file_mtime and meta.get("size") == file_size:
                         return # No changes
             except: pass
 
-        self._ingest_excel()
+        self._ingest_csv(csv_path)
         
-        # Save sync state
         with open(sync_meta_path, 'w') as f:
             import json
             json.dump({"mtime": file_mtime, "size": file_size}, f)
 
-    def _ingest_excel(self) -> None:
-        """Reads Excel, melts it, and saves to SQLite."""
+    def _ingest_csv(self, csv_path) -> None:
+        """Reads CSV and saves to SQLite."""
         try:
-            df = pd.read_excel(self.excel_path)
-            date_cols = [c for c in df.columns if isinstance(c, (datetime.date, datetime.datetime))]
+            df = pd.read_csv(csv_path)
+            # Cleanup column names (remove leading/trailing spaces)
+            df.columns = [c.strip() for c in df.columns]
             
-            melted = df.melt(
-                id_vars=["SOL", "PARAMETER"], 
-                value_vars=date_cols,
-                var_name="DATE",
-                value_name="TARGET"
-            )
-            melted["DATE"] = pd.to_datetime(melted["DATE"])
+            # Period is Mar-26, Apr-26 etc.
+            df["DATE"] = pd.to_datetime(df["Period"], format="%b-%y")
             
             session = self.session_factory()
             try:
-                # Clear existing budgets
-                session.query(BudgetModel).delete()
+                # Identify dates to update/replace
+                incoming_dates = df["DATE"].dt.date.unique()
                 
-                # Bulk insert new budgets
+                # Delete only the overlapping records to maintain history
+                session.query(BudgetModel).filter(BudgetModel.date.in_(incoming_dates)).delete(synchronize_session=False)
+                
                 objects = []
-                for _, row in melted.iterrows():
+                for _, row in df.iterrows():
                     objects.append(BudgetModel(
                         sol=int(row["SOL"]),
-                        parameter=str(row["PARAMETER"]),
+                        parameter=str(row["PARAMETER"]).strip(),
                         date=row["DATE"].date(),
-                        target=float(row["TARGET"])
+                        target=float(row["Value"])
                     ))
                 
                 session.bulk_save_objects(objects)
@@ -135,6 +91,43 @@ class BudgetRepository:
                 session.close()
         except Exception as e:
             print(f"Sync error: {e}")
+
+    def get_monthly_targets(self, sols: List[int], fy_start: datetime.date) -> pd.DataFrame:
+        """Returns a pivot table of monthly targets for the FY."""
+        fy_end = fy_start.replace(year=fy_start.year + 1)
+        
+        session = self.session_factory()
+        try:
+            query = session.query(BudgetModel).filter(
+                BudgetModel.sol.in_(sols),
+                BudgetModel.date >= fy_start,
+                BudgetModel.date < fy_end
+            )
+            df = pd.read_sql(query.statement, self.engine)
+            if df.empty:
+                return pd.DataFrame()
+            
+            # Pivot to get Parameter vs Date
+            df["Month"] = pd.to_datetime(df["date"]).dt.strftime("%b-%y")
+            # Keep months in chronological order
+            month_order = []
+            curr = fy_start
+            while curr < fy_end:
+                month_order.append(curr.strftime("%b-%y"))
+                if curr.month == 12: curr = curr.replace(year=curr.year+1, month=1)
+                else: curr = curr.replace(month=curr.month+1)
+
+            pivot = df.pivot_table(
+                index="parameter", 
+                columns="Month", 
+                values="target", 
+                aggfunc="sum"
+            )
+            # Reorder columns
+            existing_cols = [m for m in month_order if m in pivot.columns]
+            return pivot[existing_cols]
+        finally:
+            session.close()
 
     def get_target(self, metric: str, year_month: str | None = None, sols: List[int] | None = None) -> float:
         """Retrieves aggregated budget target from SQLite."""
@@ -170,7 +163,33 @@ class BudgetRepository:
         data = self.json_repo.read()
         return float(data.get("defaults", {}).get(metric, 0.0))
 
-    def save_target(self, metric: str, value: float) -> None:
-        data = self.json_repo.read()
-        data["defaults"][metric] = value
-        self.json_repo.write(data)
+    def get_sync_status(self) -> dict:
+        """Returns metadata about stored budgets."""
+        sync_meta_path = project_path("data", "budget_sync.json")
+        last_sync = "Never"
+        if os.path.exists(sync_meta_path):
+            try:
+                with open(sync_meta_path, 'r') as f:
+                    import json
+                    meta = json.load(f)
+                    mtime = meta.get("mtime", 0)
+                    last_sync = datetime.datetime.fromtimestamp(mtime).strftime("%d-%m-%Y %H:%M")
+            except: pass
+            
+        session = self.session_factory()
+        fy_ranges = []
+        try:
+            # Get distinct years from DB
+            dates = session.query(BudgetModel.date).distinct().all()
+            years = sorted(list(set([d[0].year for d in dates])))
+            # Convert years to FY ranges (assuming April start)
+            # If we have 2026-04, that's FY 2026-27
+            for y in years:
+                fy_ranges.append(f"{y}-{str(y+1)[2:]}")
+        finally:
+            session.close()
+            
+        return {
+            "last_sync": last_sync,
+            "fy_ranges": sorted(list(set(fy_ranges)))
+        }

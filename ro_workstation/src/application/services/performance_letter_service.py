@@ -6,6 +6,7 @@ from src.infrastructure.persistence.budget_repository import BudgetRepository
 from src.infrastructure.persistence.advances_repository import AdvancesRepository
 from src.application.use_cases.mis.service import MISAnalyticsService
 from src.application.services.document_service import DocumentService
+from src.application.services.master_service import MasterService
 from src.core.utils.financial_year import get_fy_start
 
 class PerformanceLetterService:
@@ -18,48 +19,12 @@ class PerformanceLetterService:
     # CASA and TD are separate groups per management preference.
     # Subsets are included so the letter table shows the breakdown.
     # SHG is Core Agri (not MSME). Mudra is the only MSME subset tracked here.
-    PARAM_GROUPS = {
-        "CASA": {
-            # Parent: CASA (SB+CD derived). Subsets: SB, CD shown in letter table.
-            "parent": "CASA",
-            "subsets": ["SB", "CD"],
-        },
-        "TD": {
-            # Parent: TD (Term Deposit). Subset: RET TD (TD minus Bulk Deposits).
-            # Total Deposits (CASA+TD) is NOT tracked here — separate budget code needed.
-            "parent": "TD",
-            "subsets": ["RET TD"],
-        },
-        "Core Ret": {
-            # All Core Retail sub-products. Parent is CORE RETAIL (derived sum).
-            "parent": "CORE RETAIL",
-            "subsets": ["HOUSING", "VEHICLE", "PERSONAL", "EDUCATION", "MORTGAGE", "LIQUIRENT", "OTHER RETAIL"],
-        },
-        "MSME": {
-            # MSME total. Mudra is a subset (shown in table). SHG is NOT MSME — it is Core Agri.
-            "parent": "MSME",
-            "subsets": ["MUDRA"],
-        },
-        "Core Agri": {
-            # Core Agri total. Subsets: KCC, SHG, Govt Sponsored Schemes, Other Schematic.
-            "parent": "CORE AGRI",
-            "subsets": ["KCC", "SHG", "GOVT SPON", "OTH SCHEMATIC"],
-        },
-        "Jewel Loan": {
-            "parent": "GOLD",
-            "subsets": ["AGRI JL", "RETAIL JL"],
-        },
-    }
-
-    # Params for NIL sanction letters. These are checked against the advances portfolio
-    # (advances_records table). If a branch has zero accounts opened in the period for
-    # the relevant L2_SECTOR, an explanation letter for NIL sanction is generated.
-    NIL_SANCTION_PARAMS = {
-        "Housing": "Housing",       # advances L2_SECTOR value → display name
-        "Vehicle": "Vehicle",
-    }
-
-    def __init__(self):
+    def __init__(self) -> None:
+        from src.core.registry.parameter_service import ParameterRegistry
+        self.registry = ParameterRegistry()
+        self.PARAM_GROUPS = self.registry.get_report_groups()
+        self.NIL_SANCTION_PARAMS = self.registry.get_nil_sanction_map()
+        
         self.analytics_service = MISAnalyticsService()
         self.budget_repo = BudgetRepository()
         self.advances_repo = AdvancesRepository()
@@ -92,10 +57,17 @@ class PerformanceLetterService:
         ym = selected_date.strftime("%Y-%m")
         results = []
 
-        for _, row in current_month_df.iterrows():
-            sol = int(row["SOL"])
-            if sol == 3933:
-                continue  # Skip RO aggregate row
+        
+        master_svc = MasterService()
+        units = master_svc.repo.get_by_category("UNIT")
+        unit_map = {int(u.code): u.name_en for u in units if u.code.isdigit()}
+
+        for sol in df["SOL"].unique():
+            if sol == 3933: continue # Skip RO
+            
+            branch_data_mask = (df["SOL"] == sol) & (df["DATE"].dt.date == selected_date)
+            if not any(branch_data_mask): continue
+            row = df[branch_data_mask].iloc[0]
 
             # Get historical data for this branch
             branch_prev_ye = prev_ye_df[prev_ye_df["SOL"] == sol]
@@ -103,7 +75,8 @@ class PerformanceLetterService:
 
             branch_result = {
                 "sol": sol,
-                "branch_name": row.get("BRANCH", f"SOL {sol}"),
+                "branch_name": unit_map.get(int(sol), f"SOL {sol}"),
+                "branch_head": master_svc.get_branch_manager(sol),
                 "date": selected_date,
                 "prev_ye_date": prev_ye_date,
                 "groups": {},
@@ -203,19 +176,32 @@ class PerformanceLetterService:
         all_sols = [int(s) for s in mis_row["SOL"].unique() if int(s) != 3933]
 
         results = []
+        nil_config = self.registry.get_nil_sanction_config()
+        
         for sol in all_sols:
             nil_params = []
-            for l2_sector, display_name in self.NIL_SANCTION_PARAMS.items():
-                branch_month_sanctions = month_sanctions[
-                    (month_sanctions["branch_code"] == sol) &
-                    (month_sanctions["l2_sector"] == l2_sector)
-                ]
+            for trigger in nil_config:
+                display_name = trigger["display_name"]
+                target_cats = trigger.get("target_categories", [])
+                target_schemes = trigger.get("target_schemes", [])
+                
+                # Filter sanctions for this branch and product
+                mask = (month_sanctions["branch_code"] == sol)
+                if target_cats:
+                    mask &= (month_sanctions["l2_sector"].isin(target_cats))
+                if target_schemes:
+                    mask &= (month_sanctions["schm_code"].isin(target_schemes))
+                
+                branch_month_sanctions = month_sanctions[mask]
                 if len(branch_month_sanctions) == 0:
                     nil_params.append(display_name)
 
             if nil_params:
-                branch_name_rows = mis_row[mis_row["SOL"] == sol]
-                branch_name = branch_name_rows["BRANCH"].iloc[0] if not branch_name_rows.empty else f"SOL {sol}"
+                master_svc = MasterService()
+                units = master_svc.repo.get_by_category("UNIT")
+                unit_map = {int(u.code): u.name_en for u in units if u.code.isdigit()}
+                
+                branch_name = unit_map.get(int(sol), f"SOL {sol}")
                 results.append({
                     "sol": sol,
                     "branch_name": branch_name,
@@ -225,20 +211,158 @@ class PerformanceLetterService:
 
         return results
 
+    def get_budget_communication_data(self, selected_date: datetime.date) -> List[Dict[str, Any]]:
+        """Collects annual targets and historical performance for budget communication."""
+        df = self.analytics_service.get_data()
+        if df.empty: return []
+        
+        # Get branch names from Master Repository
+        master_svc = MasterService()
+        units = master_svc.repo.get_by_category("UNIT")
+        unit_map = {int(u.code): u.name_en for u in units if u.code.isdigit()}
+        
+        # Get all branches from latest record
+        latest_date = df["DATE"].max()
+        unique_sols = df[df["DATE"] == latest_date]["SOL"].unique()
+        
+        # Create a list of branches with names
+        branches_list = []
+        for sol in unique_sols:
+            branches_list.append({
+                "SOL": int(sol),
+                "BRANCH": unit_map.get(int(sol), f"SOL {int(sol)}")
+            })
+        
+        # Get all params metadata
+        all_params = self.registry.get_all_params()
+        
+        # Get FY start and Prev FY end
+        from src.core.utils.financial_year import get_fy_start
+        fy_start = get_fy_start(selected_date)
+        fy_range = f"{fy_start.year}-{str(fy_start.year+1)[2:]}"
+        prev_fy_end_date = (fy_start - datetime.timedelta(days=1))
+        
+        # Fetch Prev FY End figures for all branches
+        prev_fy_df = df[df["DATE"].dt.date == prev_fy_end_date]
+        
+        results = []
+        for row in branches_list:
+            sol = row["SOL"]
+            if sol == 3933: continue # Skip RO
+            
+            branch_head = master_svc.get_branch_manager(sol)
+            
+            # Fetch full monthly grid for this branch
+            monthly_df = self.budget_repo.get_monthly_targets([sol], fy_start)
+            if monthly_df.empty: continue
+            
+            months = list(monthly_df.columns)
+            branch_prev_fy = prev_fy_df[prev_fy_df["SOL"] == sol]
+            
+            # Group by category and handle hierarchy
+            categories = ["DEPOSITS", "RETAIL", "MSME", "AGRI", "JEWEL LOAN", "OVERALL"]
+            budget_groups = {cat: [] for cat in categories}
+            
+            # Define specific order for DEPOSITS (Parent first, then subsets)
+            deposit_order = ["casa", "sb", "cd", "td", "ret_td"]
+            
+            # Create a sorted list of params to process
+            params_to_process = []
+            for p in all_params:
+                if p["id"] == "total_retail": continue # Remove Total Retail
+                if not p.get("budget_code"): continue
+                params_to_process.append(p)
+            
+            # Sort params logic: Category then custom rule
+            def get_sort_key(p):
+                cat = p.get("category", "OTHER")
+                cat_idx = categories.index(cat) if cat in categories else 99
+                
+                if cat == "DEPOSITS":
+                    sub_idx = deposit_order.index(p["id"]) if p["id"] in deposit_order else 99
+                    return (cat_idx, sub_idx)
+                
+                # For others, parent comes before subsets
+                is_parent = p.get("is_parent", False)
+                parent_id = p.get("parent_id", "")
+                return (cat_idx, 0 if is_parent else 1, parent_id or p["id"])
+
+            params_to_process.sort(key=get_sort_key)
+            
+            for p in params_to_process:
+                cat = p.get("category", "OTHER")
+                param_id = p["budget_code"]
+                
+                if param_id not in monthly_df.index: continue
+                
+                month_data = monthly_df.loc[param_id]
+                prev_val = 0.0
+                if not branch_prev_fy.empty and p["mis_col"] in branch_prev_fy.columns:
+                    prev_val = float(branch_prev_fy[p["mis_col"]].iloc[0])
+
+                budget_groups[cat].append({
+                    "id": p["id"],
+                    "display_name": p["display_name"],
+                    "is_subset": p.get("parent_id") is not None,
+                    "prev_fy_value": prev_val,
+                    "monthly_values": month_data.to_dict()
+                })
+
+            # Filter out empty categories
+            final_groups = {c: v for c, v in budget_groups.items() if v}
+
+            if final_groups:
+                results.append({
+                    "branch_name": row["BRANCH"],
+                    "sol": sol,
+                    "fy_range": fy_range,
+                    "months": months,
+                    "budget_groups": final_groups,
+                    "branch_head": branch_head
+                })
+        
+        return results
+
+    def generate_budget_zip(self, budget_data: List[Dict[str, Any]], signatory: Dict[str, Any] | None = None, progress_callback=None, comm_date: str | None = None) -> bytes:
+        """Generates a zip of PDF budget communication letters."""
+        import io
+        import zipfile
+
+        total = len(budget_data)
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            for i, branch in enumerate(budget_data):
+                if progress_callback:
+                    progress_callback((i + 1) / total, f"Generating Budget: {branch['branch_name']}...")
+
+                payload = branch.copy()
+                payload["signatory"] = signatory
+                payload["date"] = comm_date
+                pdf = self.doc_service.generate_budget_communication(payload)
+                zf.writestr(f"Budget_Communication_{branch['sol']}.pdf", pdf)
+        
+        return zip_buffer.getvalue()
+
     def generate_letters_zip(
         self,
         performance_data: List[Dict[str, Any]],
         nil_sanction_data: List[Dict[str, Any]] | None = None,
+        signatory: Dict[str, Any] | None = None,
+        progress_callback=None
     ) -> bytes:
         """Generates a zip of PDFs for appreciation and explanation letters."""
         import io
         import zipfile
 
+        total = len(performance_data)
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zf:
 
             # --- Performance letters (achievement / shortfall) ---
-            for branch in performance_data:
+            for i, branch in enumerate(performance_data):
+                if progress_callback:
+                    progress_callback((i + 1) / total, f"Generating Performance: {branch['branch_name']}...")
+
                 for group_name, data in branch["groups"].items():
 
                     if data["achievements"]:
@@ -246,8 +370,10 @@ class PerformanceLetterService:
                             "branch_name": branch["branch_name"],
                             "sol": branch["sol"],
                             "date": branch["date"],
+                            "branch_head": branch.get("branch_head"),
                             "group_name": group_name,
                             "achievements": data["achievements"],
+                            "signatory": signatory,
                         }
                         pdf = self.doc_service.generate_performance_appreciation(payload)
                         folder = f"Appreciation_Letters/{group_name.replace(' ', '_')}"
@@ -261,8 +387,10 @@ class PerformanceLetterService:
                             "branch_name": branch["branch_name"],
                             "sol": branch["sol"],
                             "date": branch["date"],
+                            "branch_head": branch.get("branch_head"),
                             "group_name": group_name,
                             "declines": data["declines"],
+                            "signatory": signatory,
                         }
                         pdf = self.doc_service.generate_explanation_letter(payload)
                         folder = f"Explanation_Letters/{group_name.replace(' ', '_')}"
@@ -278,6 +406,7 @@ class PerformanceLetterService:
                         "branch_name": branch["branch_name"],
                         "sol": branch["sol"],
                         "date": branch["date"],
+                        "branch_head": master_svc.get_branch_manager(branch["sol"]),
                         "group_name": "NIL Sanction",
                         "declines": [
                             {

@@ -5,7 +5,7 @@ import json
 import pandas as pd
 
 from src.core.paths import project_path
-from src.domain.schemas.user import UserAccess
+from src.domain.schemas import UserAccess
 from src.infrastructure.persistence.json_repo import JsonRepository
 
 

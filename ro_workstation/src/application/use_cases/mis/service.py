@@ -26,6 +26,8 @@ class MISAnalyticsService:
         self.excel_repo = ExcelRepository()
         self.repository = MISRepository()
         self.budget_repo = BudgetRepository()
+        from src.core.registry.parameter_service import ParameterRegistry
+        self.registry = ParameterRegistry()
 
     def _ingest_new_files(self) -> None:
         self.mis_dir.mkdir(parents=True, exist_ok=True)
@@ -65,19 +67,32 @@ class MISAnalyticsService:
             st.session_state["mis_needs_ingest"] = False
         return self.load_frame()
 
-    @staticmethod
-    def _enrich_metrics(frame: pd.DataFrame) -> pd.DataFrame:
+    def _enrich_metrics(self, frame: pd.DataFrame) -> pd.DataFrame:
         def safe_sum(df, columns):
             existing = [column for column in columns if column in df.columns]
             return df[existing].fillna(0).sum(axis=1) if existing else 0
 
-        frame["CORE RETAIL"] = safe_sum(frame, ["HOUSING", "VEHICLE", "PERSONAL", "MORTGAGE", "EDUCATION", "LIQUIRENT", "OTHER RETAIL"])
+        # Get dynamic subset lists from Registry (SSOT)
+        retail_cols = self.registry.get_subset_map("core_retail")
+        casa_cols = self.registry.get_subset_map("casa")
+        agri_cols = self.registry.get_subset_map("core_agri")
+        msme_cols = self.registry.get_subset_map("msme")
+        gold_cols = self.registry.get_subset_map("gold")
+
+        frame["CORE RETAIL"] = safe_sum(frame, retail_cols)
+        frame["CASA"] = safe_sum(frame, casa_cols)
+        frame["CORE AGRI"] = safe_sum(frame, agri_cols)
+        frame["MSME"] = safe_sum(frame, msme_cols)
+        frame["GOLD"] = safe_sum(frame, gold_cols)
+        
+        # Aggregate totals from parent groups
         frame["TOTAL ADVANCES"] = safe_sum(frame, ["CORE AGRI", "GOLD", "MSME", "CORE RETAIL"])
-        frame["CASA"] = safe_sum(frame, ["SB", "CD"])
+        
         td = frame["TD"].fillna(0) if "TD" in frame.columns else 0
         bulk = frame["BULK DEP"].fillna(0) if "BULK DEP" in frame.columns else 0
-        frame["RET TD"] = td - bulk          # FIXED: was "Ret TD" — must match uppercase convention
+        frame["RET TD"] = td - bulk
         frame["TOTAL DEPOSITS"] = safe_sum(frame, ["SB", "CD", "TD"])
+        
         frame["CD RATIO"] = np.where(frame["TOTAL DEPOSITS"] > 0, frame["TOTAL ADVANCES"] / frame["TOTAL DEPOSITS"] * 100, 0).round(2)
         frame["TOTAL CASH"] = safe_sum(frame, ["CASH ON HAND", "ATM CASH", "BC CASH", "BNA CASH"])
         crl = frame["CRL"].fillna(0) if "CRL" in frame.columns else 0
