@@ -93,7 +93,7 @@ class PerformanceLetterService:
 
                 for param in all_params:
                     actual = self._get_actual(row, param)
-                    target = self._get_target(param, ym, sol)
+                    target = self._get_target(param, ym, int(sol))
                     fy_start_actual = self._get_actual(prev_ye_row, param) if prev_ye_row is not None else 0
                     fy_growth = actual - fy_start_actual
 

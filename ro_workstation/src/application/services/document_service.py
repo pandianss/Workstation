@@ -229,14 +229,7 @@ class DocumentService:
     def _resolve_staff_profile(self, identifier: str) -> dict:
         """Resolve roll number or name to trilingual signatory details."""
         identifier = str(identifier)
-        DESIG_MAP = {
-            "REGIONAL MANAGER": {"en": "Regional Manager", "hi": "क्षेत्रीय प्रबंधक", "ta": "மண்டல மேலாளர்"},
-            "SENIOR REGIONAL MANAGER": {"en": "Senior Regional Manager", "hi": "वरिष्ठ क्षेत्रीय प्रबंधक", "ta": "முதன்மை மண்டல மேலாளர்"},
-            "CHIEF REGIONAL MANAGER": {"en": "Chief Regional Manager", "hi": "मुख्य क्षेत्रीय प्रबंधक", "ta": "தலைமை மண்டல மேலாளர்"},
-            "CHIEF MANAGER": {"en": "Chief Manager", "hi": "मुख्य प्रबंधक", "ta": "முதன்மை மேலாளர்"},
-            "SENIOR MANAGER": {"en": "Senior Manager", "hi": "वरिष्ठ प्रबंधक", "ta": "மூத்த மேலாளர்"},
-            "MANAGER": {"en": "Manager", "hi": "प्रबंधक", "ta": "மேலாளர்"},
-        }
+        from src.application.services.master_service import DesignationMapper
         try:
             from src.infrastructure.persistence.master_repository import MasterRepository
             repo = MasterRepository()
@@ -262,14 +255,20 @@ class DocumentService:
                 
                 # Precise IOB Grade-to-Designation Mapping (Legacy fallback)
                 if "VI" in grade: # Scale VI - Chief Regional Manager
-                    desig = DESIG_MAP["CHIEF REGIONAL MANAGER"]
+                    desig_key = "CHIEF REGIONAL MANAGER"
                 elif "V" in grade and "IV" not in grade: # Scale V - Senior Regional Manager
-                    desig = DESIG_MAP["SENIOR REGIONAL MANAGER"]
+                    desig_key = "SENIOR REGIONAL MANAGER"
                 elif "IV" in grade: # Scale IV - Chief Manager
-                    desig = DESIG_MAP["CHIEF MANAGER"]
+                    desig_key = "CHIEF MANAGER"
                 else:
-                    matched_key = next((k for k in DESIG_MAP if k in raw_desig), "REGIONAL MANAGER")
-                    desig = DESIG_MAP[matched_key]
+                    desig_key = None
+
+                if desig_key:
+                    trans = DesignationMapper.MAPPINGS[desig_key]
+                    desig = {"en": desig_key.title(), "hi": trans["hi"], "ta": trans["ta"]}
+                else:
+                    desig = DesignationMapper.get_trilingual(raw_desig)
+
                 return {
                     "name": found.name_en, "name_hi": found.name_hi or found.name_en, "name_ta": found.name_local or found.name_en,
                     "roll": found.code, "desig_en": desig["en"], "desig_hi": desig["hi"], "desig_ta": desig["ta"]
@@ -538,5 +537,35 @@ class DocumentService:
             signatory=payload["signatory"],
             ref_no=f"RO/DGL/MIS/BUD/{payload['sol']}/{datetime.date.today().year}",
             date=payload.get("date", datetime.date.today().strftime("%d.%m.%Y"))
+        )
+        return self._html_to_pdf(html)
+    def generate_custom_letter_pdf(self, recipient_name: str, recipient_address: str, subject: str, body: str, signatory_roll: str, ref_no: str = None, date: str = None, is_html: bool = False) -> bytes:
+        """Generates a professional letter on bank letterhead."""
+        signatory = self._resolve_staff_profile(signatory_roll)
+        html = self._render_template(
+            "custom_letter.html",
+            recipient_name=recipient_name,
+            recipient_address=recipient_address,
+            subject=subject,
+            body=body,
+            signatory=signatory,
+            ref_no=ref_no or f"RO/DGL/GEN/{datetime.date.today().year}",
+            date=date or datetime.date.today().strftime("%d.%m.%Y"),
+            is_html=is_html
+        )
+        return self._html_to_pdf(html)
+
+    def generate_appreciation_certificate_pdf(self, recipient_roll: str, reason: str, signatory_roll: str, date: str = None) -> bytes:
+        """Generates a premium trilingual appreciation certificate."""
+        recipient = self._resolve_staff_profile(recipient_roll)
+        signatory = self._resolve_staff_profile(signatory_roll)
+        
+        html = self._render_template(
+            "appreciation_certificate.html",
+            recipient=recipient,
+            reason=reason,
+            signatory=signatory,
+            date=date or datetime.date.today().strftime("%d.%m.%Y"),
+            ref_no=f"RO/DGL/CERT/{recipient_roll}/{datetime.date.today().year}"
         )
         return self._html_to_pdf(html)

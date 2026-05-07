@@ -36,10 +36,10 @@
         <thead>
             <tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1;">
                 <th style="padding: 10px; text-align: left;">Parameter</th>
-                <th style="padding: 10px; text-align: right;">Budget</th>
+                <th style="padding: 10px; text-align: right;">March 31st</th>
                 <th style="padding: 10px; text-align: right;">Actual</th>
-                <th style="padding: 10px; text-align: right;">Gap</th>
-                <th style="padding: 10px; text-align: right;">Growth since March</th>
+                <th style="padding: 10px; text-align: right;">Growth</th>
+                <th style="padding: 10px; text-align: right;">Budget</th>
                 <th style="padding: 10px; text-align: center;">% Achievement</th>
             </tr>
         </thead>
@@ -49,14 +49,12 @@
                 <td style="padding: 10px; {% if not d.is_parent %}padding-left: 30px; font-style: italic; color: #475569;{% else %}font-weight: 700; color: #21357f;{% endif %}">
                     {% if not d.is_parent %}└─ {% endif %}{{ d.parameter }}
                 </td>
-                <td style="padding: 10px; text-align: right; {% if d.is_parent %}font-weight: 700;{% endif %}">{{ "%.2f"|format(d.target) }}</td>
+                <td style="padding: 10px; text-align: right;">{{ "%.2f"|format(d.fy_start_actual) }}</td>
                 <td style="padding: 10px; text-align: right; {% if d.is_parent %}font-weight: 700;{% endif %}">{{ "%.2f"|format(d.actual) }}</td>
-                <td style="padding: 10px; text-align: right; color: {% if d.pct < 90 %}#ef4444{% else %}#64748b{% endif %}; {% if d.is_parent %}font-weight: 700;{% endif %}">
-                    {{ "%.2f"|format(d.variance) }}
-                </td>
                 <td style="padding: 10px; text-align: right; color: {% if d.fy_growth >= 0 %}#10b981{% else %}#ef4444{% endif %}; {% if d.is_parent %}font-weight: 700;{% endif %}">
                     {{ "%.2f"|format(d.fy_growth) }}
                 </td>
+                <td style="padding: 10px; text-align: right; {% if d.is_parent %}font-weight: 700;{% endif %}">{{ "%.2f"|format(d.target) }}</td>
                 <td style="padding: 10px; text-align: center; font-weight: 700; color: {% if d.pct < 90 %}#ef4444{% else %}#64748b{% endif %};">
                     {{ "%.1f"|format(d.pct) }}%
                 </td>

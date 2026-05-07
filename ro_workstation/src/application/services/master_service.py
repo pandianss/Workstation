@@ -42,12 +42,18 @@ class DesignationMapper:
 
     @classmethod
     def get_trilingual(cls, desig_en: str) -> dict:
-        """Get dict with en, hi, ta designations."""
+        """Get dict with en, hi, ta designations with longest-match priority."""
         d_up = str(desig_en).upper().strip()
-        # Direct match or partial match
-        for key, trans in cls.MAPPINGS.items():
+        
+        # Sort keys by length descending to ensure longest match (e.g. SENIOR REGIONAL MANAGER) 
+        # is checked before shorter substrings (e.g. REGIONAL MANAGER)
+        sorted_keys = sorted(cls.MAPPINGS.keys(), key=len, reverse=True)
+        
+        for key in sorted_keys:
             if key in d_up:
+                trans = cls.MAPPINGS[key]
                 return {"en": desig_en, "hi": trans["hi"], "ta": trans["ta"]}
+        
         # Default fallback
         return {"en": desig_en, "hi": desig_en, "ta": desig_en}
 class MasterService:

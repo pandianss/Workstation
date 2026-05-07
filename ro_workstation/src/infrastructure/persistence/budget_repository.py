@@ -11,7 +11,7 @@ from src.infrastructure.persistence.sqlite_models import Base, BudgetModel
 
 class BudgetRepository:
     def __init__(self) -> None:
-        self.excel_path = project_path().parent / "samples" / "budgets2.xlsx"
+        self.excel_path = project_path("samples", "budgets2.xlsx")
         self.db_path = project_path("data", "mis_store.db")
         
         from src.core.registry.parameter_service import ParameterRegistry
@@ -32,7 +32,7 @@ class BudgetRepository:
 
     def sync_if_needed(self):
         """Checks if CSV was modified since last ingestion and re-syncs if needed."""
-        csv_path = project_path().parent / "files" / "Budget3.csv"
+        csv_path = project_path("files", "Budget3.csv")
         if not csv_path.exists():
             return
 
@@ -62,8 +62,8 @@ class BudgetRepository:
             # Cleanup column names (remove leading/trailing spaces)
             df.columns = [c.strip() for c in df.columns]
             
-            # Period is Mar-26, Apr-26 etc.
-            df["DATE"] = pd.to_datetime(df["Period"], format="%b-%y")
+            # Period is Mar-26, Apr-26 etc. Set to end of month
+            df["DATE"] = pd.to_datetime(df["Period"], format="%b-%y") + pd.offsets.MonthEnd(0)
             
             session = self.session_factory()
             try:
@@ -73,13 +73,20 @@ class BudgetRepository:
                 # Delete only the overlapping records to maintain history
                 session.query(BudgetModel).filter(BudgetModel.date.in_(incoming_dates)).delete(synchronize_session=False)
                 
+                def safe_float(val):
+                    try:
+                        v = str(val).replace(",", "").strip()
+                        if v in ["-", "", "None", "nan"]: return 0.0
+                        return float(v)
+                    except: return 0.0
+
                 objects = []
                 for _, row in df.iterrows():
                     objects.append(BudgetModel(
                         sol=int(row["SOL"]),
                         parameter=str(row["PARAMETER"]).strip(),
                         date=row["DATE"].date(),
-                        target=float(row["Value"])
+                        target=safe_float(row["Value"])
                     ))
                 
                 session.bulk_save_objects(objects)

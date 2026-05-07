@@ -72,18 +72,20 @@ class MISAnalyticsService:
             existing = [column for column in columns if column in df.columns]
             return df[existing].fillna(0).sum(axis=1) if existing else 0
 
-        # Get dynamic subset lists from Registry (SSOT)
-        retail_cols = self.registry.get_subset_map("core_retail")
-        casa_cols = self.registry.get_subset_map("casa")
-        agri_cols = self.registry.get_subset_map("core_agri")
-        msme_cols = self.registry.get_subset_map("msme")
-        gold_cols = self.registry.get_subset_map("gold")
+        # Enrichment logic: Only calculate if column is missing OR entirely empty
+        def enrich_category(df, parent_id):
+            p_config = self.registry.get_by_id(parent_id)
+            if not p_config: return df
+            col = p_config["mis_col"]
+            
+            # If column doesn't exist or is all NaNs/Zeros, we calculate from subsets
+            if col not in df.columns or df[col].fillna(0).sum() == 0:
+                subsets = self.registry.get_subset_map(parent_id)
+                df[col] = safe_sum(df, subsets)
+            return df
 
-        frame["CORE RETAIL"] = safe_sum(frame, retail_cols)
-        frame["CASA"] = safe_sum(frame, casa_cols)
-        frame["CORE AGRI"] = safe_sum(frame, agri_cols)
-        frame["MSME"] = safe_sum(frame, msme_cols)
-        frame["GOLD"] = safe_sum(frame, gold_cols)
+        for cat_id in ["core_retail", "casa", "core_agri", "msme", "gold"]:
+            frame = enrich_category(frame, cat_id)
         
         # Aggregate totals from parent groups
         frame["TOTAL ADVANCES"] = safe_sum(frame, ["CORE AGRI", "GOLD", "MSME", "CORE RETAIL"])
