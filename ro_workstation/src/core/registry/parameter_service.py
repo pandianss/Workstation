@@ -26,6 +26,7 @@ class ParameterRegistry:
         self.contact = self._config.get("contact", {})
         self.signatories = self._config.get("signatories", {})
         self.nil_sanction_triggers = self._config.get("nil_sanctions", [])
+        self.infrastructure = self._config.get("infrastructure", {})
         
         # Build optimized lookups
         self._by_id = {p["id"]: p for p in self.params}
@@ -96,3 +97,6 @@ class ParameterRegistry:
 
     def get_signatory(self, key: str = "default_rm") -> Dict[str, Any]:
         return self.signatories.get(key, {})
+
+    def get_infrastructure(self) -> Dict[str, Any]:
+        return self.infrastructure

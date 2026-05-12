@@ -10,12 +10,15 @@ from src.application.services.document_service import DocumentService
 from src.application.services.returns_service import ReturnsService
 from src.application.use_cases.global_search import GlobalSearchService
 import datetime
-from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_filter_panel, render_premium_metrics
+from src.interface.streamlit.components.primitives import (
+    render_action_bar, render_data_table, render_filter_panel, 
+    render_premium_metrics, render_section_divider, render_info_banner
+)
 
 
 from src.interface.streamlit.state.services import (
     get_task_service, get_guardian_service, get_returns_service, 
-    get_search_service, get_circular_service, get_doc_service
+    get_search_service, get_circular_service, get_doc_service_v2
 )
 
 def render() -> None:
@@ -28,7 +31,8 @@ def render() -> None:
     summary = task_service.get_task_summary(username)
     
     # Premium Action Bar
-    render_action_bar("Executive Dashboard", ["Real-time", "Bi-lingual", "Glassmorphic"])
+    st.markdown('<h1 class="text-gold">Executive Command Center</h1>', unsafe_allow_html=True)
+    render_action_bar("Strategic Regional Oversight", ["Real-time", "Bi-lingual", "Luxury Edition"])
     
     # Glassmorphic KPI Row
     render_premium_metrics({
@@ -38,7 +42,7 @@ def render() -> None:
         "Guardian Alerts": len(guardian_service.list_followups()),
     })
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    render_section_divider()
     
     # Integrated Search & Focus Area
     col_search, col_stats = st.columns([2, 1])
@@ -54,8 +58,8 @@ def render() -> None:
         
         task_frame = pd.DataFrame(summary["tasks"])
         if not task_frame.empty:
-            st.markdown("#### ⚡ Active Workload Queue")
-            render_data_table(task_frame, "Pending Actions", "task_queue.xlsx")
+            st.markdown('<div class="text-gold" style="font-size: 1.2rem; margin-bottom: 0.5rem;">⚡ Active Action Queue</div>', unsafe_allow_html=True)
+            render_data_table(task_frame, "Pending Responsibilities", "task_queue.xlsx")
 
     with col_stats:
         st.markdown("#### 🛡️ Guardian Insights")
@@ -86,6 +90,78 @@ def render() -> None:
                 """, unsafe_allow_html=True)
         else:
             st.info("No pending returns.")
+
+        # --- Branch Anniversaries Section ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 🎈 Upcoming Anniversaries")
+        from src.application.services.anniversary_service import AnniversaryService
+        anniv_svc = AnniversaryService()
+        upcoming_anniv = anniv_svc.get_upcoming_anniversaries(days=15)
+        
+        if upcoming_anniv:
+            for anniv in upcoming_anniv:
+                days_txt = "TODAY" if anniv["days_to_go"] == 0 else f"IN {anniv['days_to_go']} DAYS"
+                render_info_banner(
+                    title=f"{anniv['name']} - {anniv['years']} Year Anniversary",
+                    message=f"Celebrate this milestone on {anniv['anniversary_date'].strftime('%d %B')}. Status: {days_txt}",
+                    icon="🎊"
+                )
+                
+                # Small action buttons for anniversary
+                c1, c2 = st.columns(2)
+                if c1.button("🎨 Poster", key=f"post_{anniv['sol']}", use_container_width=True):
+                    with st.spinner("Generating..."):
+                        html = get_doc_service_v2().generate_anniversary_poster_html(anniv["name"], anniv["years"], anniv["open_date"].strftime("%d.%m.%Y"))
+                        st.session_state[f"anniv_post_html_{anniv['sol']}"] = html
+                
+                if c2.button("📝 Note", key=f"note_{anniv['sol']}", use_container_width=True):
+                    with st.spinner("Preparing..."):
+                        pdf = get_doc_service_v2().generate_pdf_anniversary(anniv["name"], anniv["sol"], anniv["years"], anniv["open_date"].strftime("%d.%m.%Y"))
+                        st.session_state[f"anniv_note_{anniv['sol']}"] = pdf
+                
+                # Render the interactive poster preview if generated
+                if f"anniv_post_html_{anniv['sol']}" in st.session_state:
+                    with st.expander("👁️ Poster Preview & Image Download", expanded=True):
+                        st.components.v1.html(st.session_state[f"anniv_post_html_{anniv['sol']}"], height=800, scrolling=True)
+                        st.info("💡 Use the blue button inside the preview above to download the high-res PNG.")
+                if f"anniv_note_{anniv['sol']}" in st.session_state:
+                    st.download_button("📥 Download Note", data=st.session_state[f"anniv_note_{anniv['sol']}"], file_name=f"Note_{anniv['name']}.pdf", key=f"dl_note_{anniv['sol']}", use_container_width=True)
+
+        else:
+            st.info("No branch anniversaries in the next 15 days.")
+
+        # --- Staff Milestones Section ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 🌟 Staff Milestones")
+        staff_events = anniv_svc.get_staff_celebrations(days=15)
+        
+        if staff_events:
+            for event in staff_events:
+                days_txt = "TODAY" if event["days_to_go"] == 0 else f"IN {event['days_to_go']} DAYS"
+                icon = "🎂" if event["type"] == "BIRTHDAY" else "🎖️"
+                title_prefix = "Birthday" if event["type"] == "BIRTHDAY" else "Retirement"
+                
+                render_info_banner(
+                    title=f"{title_prefix}: {event['name']}",
+                    message=f"{event['designation']} ({event['sol']}) | {event['event_date'].strftime('%d %B')}. Status: {days_txt}",
+                    icon=icon
+                )
+                
+                # Poster generation for staff
+                if st.button(f"🎨 Generate {title_prefix} Poster", key=f"staff_post_{event['roll']}_{event['type']}", use_container_width=True):
+                    with st.spinner("Crafting..."):
+                        if event["type"] == "BIRTHDAY":
+                            html = get_doc_service_v2().generate_staff_birthday_html(event['name'], event['designation'], f"Branch {event['sol']}")
+                        else:
+                            html = get_doc_service_v2().generate_staff_retirement_html(event['name'], event['designation'])
+                        st.session_state[f"staff_post_html_{event['roll']}_{event['type']}"] = html
+                
+                if f"staff_post_html_{event['roll']}_{event['type']}" in st.session_state:
+                    with st.expander(f"👁️ {title_prefix} Preview", expanded=True):
+                        st.components.v1.html(st.session_state[f"staff_post_html_{event['roll']}_{event['type']}"], height=800, scrolling=True)
+                        st.info("💡 Use the blue button inside the preview above to download.")
+        else:
+            st.info("No staff birthdays or retirements in the next 15 days.")
 
     # 4. Regional Circulars (Visible to All)
     st.divider()

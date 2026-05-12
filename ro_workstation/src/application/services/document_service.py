@@ -144,7 +144,8 @@ class DocumentService:
                 f.write(html)
             
             # Paths to Edge executable (standard Windows location)
-            edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+            infra = self.registry.get_infrastructure()
+            edge_path = infra.get("browser_path", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
             
             # Command to run Edge in headless mode for printing
             # Using --headless=new for better stability in modern Chromium
@@ -305,8 +306,145 @@ class DocumentService:
         html = self.generate_anniversary_note(branch_name, branch_code, years, foundation_date, prepared_by)
         return self._html_to_pdf(html)
 
-    def _get_signatory(self, roll_no: str) -> dict:
-        return self._resolve_staff_profile(roll_no)
+    def generate_anniversary_poster(self, branch_name: str, years: int, open_date: str) -> bytes:
+        """Generates a 1080x1920 high-res celebratory poster PDF."""
+        html = self.generate_anniversary_poster_html(branch_name, years, open_date)
+        return self._html_to_pdf(html)
+
+    def generate_anniversary_poster_html(self, branch_name: str, years: int, open_date: str) -> str:
+        """Generates the raw HTML for the celebratory poster."""
+        import base64
+        import os
+        
+        logo_path = project_path("src", "assets", "2026logo_min.svg")
+        logo_data = ""
+        if logo_path.exists():
+            with open(logo_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_data = f"data:image/svg+xml;base64,{encoded}"
+        else:
+            logo_data = self.org_data.get("bankLogo", "")
+
+        template = self.env.get_template("anniversary_poster.html")
+        return template.render(
+            logo_url=logo_data,
+            branch_name=branch_name,
+            years=years,
+            open_date=open_date,
+            region_name=self.org_data.get("region_name", "Regional Office")
+        )
+
+    def generate_staff_birthday_html(self, staff_roll: str) -> str:
+        """Generates the raw HTML for a staff birthday poster."""
+        return self.generate_staff_milestone_html(staff_roll, "BIRTHDAY")
+
+    def generate_staff_retirement_html(self, staff_roll: str) -> str:
+        """Generates the raw HTML for a staff retirement poster."""
+        return self.generate_staff_milestone_html(staff_roll, "RETIREMENT")
+
+    def generate_staff_milestone_html(self, staff_roll: str, milestone_type: str) -> str:
+        """Generates the raw HTML for a trilingual staff birthday/retirement poster."""
+        import base64
+        profile = self._resolve_staff_profile(staff_roll)
+        
+        # Get Branch Name from Master
+        from src.infrastructure.persistence.master_repository import MasterRepository
+        repo = MasterRepository()
+        staff_rec = next((s for s in repo.get_by_category("STAFF") if s.code == staff_roll), None)
+        branch_name = "REGIONAL OFFICE"
+        if staff_rec:
+            sol = (staff_rec.metadata or {}).get("sol")
+            unit = next((u for u in repo.get_by_category("UNIT") if u.code == sol), None)
+            if unit: branch_name = unit.name_en
+
+        logo_path = project_path("src", "assets", "2026logo_min.svg")
+        logo_data = ""
+        if logo_path.exists():
+            with open(logo_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_data = f"data:image/svg+xml;base64,{encoded}"
+        else:
+            logo_data = self.org_data.get("bankLogo", "")
+
+        template = self.env.get_template("staff_milestone.html")
+        
+        # Determine Photo URL - check if local photo exists, else use empty string for fallback
+        photo_url = ""
+        photo_path = project_path("data", "staff_photos", f"{staff_roll}.jpg")
+        if photo_path.exists():
+            with open(photo_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                photo_url = f"data:image/jpeg;base64,{encoded}"
+
+        return template.render(
+            logo_url=logo_data,
+            milestone_type=milestone_type.upper(),
+            name_en=profile["name"],
+            name_ta=profile.get("name_ta", ""),
+            designation=profile.get("desig_en", ""),
+            branch_name=branch_name,
+            photo_url=photo_url
+        )
+
+    def generate_high_value_dd_html(self, data: dict) -> str:
+        """Generates a formal office note for High Value DD approval."""
+        from src.infrastructure.persistence.master_repository import MasterRepository
+        repo = MasterRepository()
+        
+        # Resolve Branch Name
+        sol = data.get("branch_sol", "")
+        branch_rec = next((u for u in repo.get_by_category("UNIT") if u.code == sol), None)
+        issuing_branch = branch_rec.name_en if branch_rec else f"Branch (SOL: {sol})"
+
+        return self._render_template(
+            "high_value_dd.html",
+            current_date=datetime.date.today().strftime("%d.%m.%Y"),
+            branch_sol=sol,
+            issuing_branch=issuing_branch,
+            applicant_name=data.get("applicant_name", ""),
+            account_no=data.get("account_no", ""),
+            kyc_status=data.get("kyc_status", "YES"),
+            beneficiary_name=data.get("beneficiary_name", ""),
+            amount=data.get("amount", 0.0),
+            dd_drawn_on=data.get("dd_drawn_on", ""),
+            purpose=data.get("purpose", ""),
+            circulars=data.get("circulars", []),
+            recommendation=data.get("recommendation", ""),
+            ref_no=data.get("ref_no", "RO/GEN/2026"),
+            note_date=data.get("note_date", datetime.date.today().strftime("%d.%m.%Y"))
+        )
+
+    def generate_high_value_dd_pdf(self, data: dict) -> bytes:
+        """Generates a formal PDF office note for High Value DD approval."""
+        html = self.generate_high_value_dd_html(data)
+        return self._html_to_pdf(html)
+
+    def generate_campaign_poster_html(self, campaign_id: int) -> str:
+        """Generates a high-impact promotional poster for a regional campaign."""
+        from src.application.services.campaign_service import CampaignService
+        service = CampaignService()
+        campaigns = service.get_all()
+        if campaign_id < 0 or campaign_id >= len(campaigns):
+            return "Campaign not found"
+        
+        camp = campaigns[campaign_id]
+        import base64
+        logo_path = project_path("src", "assets", "2026logo_min.svg")
+        logo_data = ""
+        if logo_path.exists():
+            with open(logo_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+                logo_data = f"data:image/svg+xml;base64,{encoded}"
+
+        template = self.env.get_template("campaign_poster.html")
+        return template.render(
+            logo_url=logo_data,
+            campaign_name=camp["name"],
+            target_value=camp["target_value"],
+            metric=camp["target_metric"],
+            start_date=camp["start_date"],
+            end_date=camp["end_date"]
+        )
 
     def generate_circular_pdf(self, circular_data: dict) -> bytes:
         """Generates a regional circular with trilingual signatory."""

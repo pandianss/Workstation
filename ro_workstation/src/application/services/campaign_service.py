@@ -23,7 +23,7 @@ class CampaignService:
     def save_all(self, campaigns: List[Dict[str, Any]]):
         self.path.write_text(json.dumps({"campaigns": campaigns}, indent=4), encoding="utf-8")
 
-    def add_campaign(self, name: str, start_date: str, end_date: str, target_metric: str, target_value: float, status: str = "Active"):
+    def add_campaign(self, name: str, start_date: str, end_date: str, target_metric: str, target_value: float, branch_targets: Dict[str, float] = None, status: str = "Active"):
         campaigns = self.get_all()
         campaigns.append({
             "name": name,
@@ -31,6 +31,7 @@ class CampaignService:
             "end_date": end_date,
             "target_metric": target_metric,
             "target_value": target_value,
+            "branch_targets": branch_targets or {},
             "status": status
         })
         self.save_all(campaigns)

@@ -7,7 +7,7 @@ import streamlit as st
 
 from src.application.services.circular_service import CircularService
 from src.interface.streamlit.state.services import (
-    get_doc_service, get_task_service, get_circular_service, 
+    get_doc_service_v2, get_task_service, get_circular_service, 
     get_mm_service, get_master_service
 )
 from src.interface.streamlit.components.primitives import render_action_bar, render_chart_container, render_data_table
@@ -21,7 +21,7 @@ def prepare_content(text: str, use_html: bool) -> str:
 
 def render() -> None:
     task_service = get_task_service()
-    doc_service = get_doc_service()
+    doc_service = get_doc_service_v2()
     mm_service = get_mm_service()
     circ_service = get_circular_service()
 

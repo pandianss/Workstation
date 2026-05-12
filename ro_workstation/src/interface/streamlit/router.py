@@ -19,6 +19,8 @@ PAGE_REGISTRY = {
     "Letter Generator": "src.interface.streamlit.pages.letter_generator",
     "Branch Portal": "src.interface.streamlit.pages.branch_portal",
     "Guest Portal": "src.interface.streamlit.pages.guest_portal",
+    "Anniversary Portal": "src.interface.streamlit.pages.anniversary_portal",
+    "High Value DD Note": "src.interface.streamlit.pages.high_value_dd",
 }
 
 

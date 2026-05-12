@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,700&family=Cinzel:wght@700;900&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg:      #010C1E;
+    --gold:    #C9963A;
+    --gold-lt: #F0CE78;
+    --white:   #FFFFFF;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    background:#000;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    font-family:'Josefin Sans', sans-serif;
+}
+
+#poster {
+    width:1080px;
+    height:1920px;
+    position:relative;
+    overflow:hidden;
+    background:var(--bg);
+}
+
+.bg-layer {
+    position:absolute; inset:0;
+    background:
+        radial-gradient(ellipse 850px 850px at 50% 58%, rgba(170,108,8,0.18) 0%, transparent 65%),
+        radial-gradient(ellipse 1100px 480px at 50% 0%, rgba(8,32,100,0.6) 0%, transparent 60%),
+        linear-gradient(170deg, #071440 0%, #020C1E 50%, #030F26 100%);
+}
+
+.corner { position:absolute; width:110px; height:110px; z-index:4; }
+.corner.tl { top:44px; left:44px;   border-top:1.5px solid rgba(201,150,58,0.4); border-left:1.5px solid rgba(201,150,58,0.4); }
+.corner.tr { top:44px; right:44px;  border-top:1.5px solid rgba(201,150,58,0.4); border-right:1.5px solid rgba(201,150,58,0.4); }
+.corner.bl { bottom:44px; left:44px;  border-bottom:1.5px solid rgba(201,150,58,0.4); border-left:1.5px solid rgba(201,150,58,0.4); }
+.corner.br { bottom:44px; right:44px; border-bottom:1.5px solid rgba(201,150,58,0.4); border-right:1.5px solid rgba(201,150,58,0.4); }
+
+.content {
+    position:relative; z-index:10;
+    width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center;
+    padding:82px 80px 70px;
+}
+
+.logo-wrap {
+    filter:drop-shadow(0 0 24px rgba(255,255,255,0.2));
+    margin-bottom:48px; flex-shrink:0;
+}
+.logo-wrap img { max-width:310px; max-height:145px; object-fit:contain; }
+
+.eyebrow {
+    display:flex; align-items:center; gap:16px; margin-bottom:12px;
+}
+.eyebrow-dot {
+    width:7px; height:7px; background:var(--gold); border-radius:50%;
+    box-shadow:0 0 10px 4px rgba(201,150,58,0.55); flex-shrink:0;
+}
+.eyebrow-text {
+    font-size:26px; font-weight:400; letter-spacing:0.48em;
+    color:#FEF3C7; text-transform:uppercase; opacity:0.82; white-space:nowrap;
+}
+
+.bday-headline {
+    font-family:'Cormorant Garamond', serif;
+    font-size:148px; font-weight:700; font-style:italic;
+    line-height:0.88; color:#fff; letter-spacing:-1px;
+    text-shadow:0 0 80px rgba(201,150,58,0.28), 0 6px 24px rgba(0,0,0,0.7);
+    white-space:nowrap; flex-shrink:0;
+}
+
+.rule {
+    display:flex; align-items:center; gap:14px;
+    margin:28px 0; width:660px; flex-shrink:0;
+}
+.rule-line {
+    flex:1; height:1px;
+    background:linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold) 70%, transparent);
+    opacity:0.5;
+}
+.rule-diamond {
+    width:9px; height:9px; background:var(--gold);
+    transform:rotate(45deg); flex-shrink:0;
+    box-shadow:0 0 7px 2px rgba(201,150,58,0.55);
+}
+
+.photo-wrap {
+    position:relative; width:620px; height:620px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.orbit {
+    position:absolute; inset:-22px; border-radius:50%;
+    border:1px solid rgba(201,150,58,0.22);
+    animation:orbit 22s linear infinite;
+}
+.orbit-dot {
+    position:absolute; top:50%; left:-5px; margin-top:-5px;
+    width:10px; height:10px; background:var(--gold); border-radius:50%;
+    box-shadow:0 0 10px 3px rgba(201,150,58,0.8);
+}
+@keyframes orbit { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.photo-ring {
+    position:absolute; inset:0; border-radius:50%;
+    border:10px double var(--gold);
+    animation:ringPulse 4s ease-in-out infinite;
+}
+@keyframes ringPulse {
+    0%,100% { box-shadow:0 0 40px 10px rgba(201,150,58,0.2), inset 0 0 30px rgba(201,150,58,0.07); }
+    50%      { box-shadow:0 0 90px 35px rgba(201,150,58,0.32), inset 0 0 50px rgba(201,150,58,0.12); }
+}
+.photo-ring-inner { position:absolute; inset:15px; border-radius:50%; border:1px solid rgba(201,150,58,0.38); }
+.photo-circle {
+    width:598px; height:598px; border-radius:50%; overflow:hidden;
+    background:radial-gradient(circle at 40% 35%, #16296A, #061232, #010816);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.photo-circle img { width:100%; height:100%; object-fit:cover; display:block; }
+.photo-placeholder { display:none; flex-direction:column; align-items:center; }
+.photo-placeholder svg { opacity:0.38; width:210px; height:210px; }
+.photo-glow {
+    position:absolute; bottom:-35px; left:50%; transform:translateX(-50%);
+    width:480px; height:80px;
+    background:radial-gradient(ellipse, rgba(201,150,58,0.28) 0%, transparent 70%);
+    filter:blur(18px); pointer-events:none;
+}
+
+.details { margin-top:44px; text-align:center; width:100%; flex-shrink:0; }
+.stars-row {
+    display:flex; align-items:center; justify-content:center;
+    gap:10px; margin-bottom:16px; color:var(--gold);
+    font-size:15px; opacity:0.65; letter-spacing:5px;
+}
+.stars-row .big { font-size:21px; opacity:1; }
+.emp-name {
+    font-family:'Cinzel', serif; font-size:88px; font-weight:900;
+    line-height:1; color:#fff; letter-spacing:2px; white-space:nowrap;
+    display:block; text-shadow:0 4px 28px rgba(0,0,0,0.45);
+}
+.desig-pill {
+    display:inline-flex; align-items:center; gap:10px; margin-top:24px;
+    padding:14px 50px; border-radius:100px;
+    background:rgba(201,150,58,0.10); border:1px solid rgba(201,150,58,0.50);
+    font-size:30px; font-weight:600; letter-spacing:0.14em;
+    color:var(--gold-lt); text-transform:uppercase; white-space:nowrap;
+}
+.desig-pill::before,.desig-pill::after { content:'✦'; font-size:13px; color:var(--gold); opacity:0.7; }
+.branch-text {
+    margin-top:18px; font-size:27px; font-weight:300;
+    letter-spacing:0.42em; color:rgba(255,255,255,0.38); text-transform:uppercase;
+}
+
+/* Confetti animation */
+.confetti-piece {
+    position:absolute; pointer-events:none; z-index:6;
+    animation:confettiFall var(--dur) var(--del) ease-in-out infinite;
+}
+@keyframes confettiFall {
+    0%   { transform:translateY(var(--sy)) rotate(0deg)        scale(1);   opacity:0; }
+    8%   { opacity:var(--op); }
+    92%  { opacity:var(--op); }
+    100% { transform:translateY(var(--ey)) rotate(var(--rot))  scale(0.75); opacity:0; }
+}
+
+/* Sparkle dots */
+.sparkle {
+    position:absolute; border-radius:50%; pointer-events:none; z-index:6;
+    background:rgba(201,150,58,0.75);
+    animation:sparklePulse var(--dur) var(--del) ease-in-out infinite alternate;
+}
+@keyframes sparklePulse {
+    0%   { transform:translateY(0) scale(1);    opacity:var(--lo); }
+    100% { transform:translateY(-40px) scale(1.4); opacity:var(--hi); }
+}
+
+/* Balloon float */
+.balloon-svg {
+    position:absolute; pointer-events:none; z-index:7;
+    animation:balloonSway var(--sw) var(--sd) ease-in-out infinite alternate;
+}
+@keyframes balloonSway {
+    0%   { transform:translateY(0)    rotate(var(--r1)); }
+    100% { transform:translateY(-18px) rotate(var(--r2)); }
+}
+
+.btn-dl {
+    margin:42px; padding:20px 76px;
+    background:linear-gradient(135deg,#1e3a8a,#1e40af); color:#fff;
+    border-radius:100px; font-family:'Josefin Sans',sans-serif;
+    font-size:23px; font-weight:700; letter-spacing:0.12em;
+    border:none; cursor:pointer; box-shadow:0 14px 40px rgba(0,0,0,0.55);
+    transition:transform 0.2s,box-shadow 0.2s;
+}
+.btn-dl:hover { transform:translateY(-4px); box-shadow:0 22px 50px rgba(0,0,0,0.65); }
+</style>
+</head>
+<body>
+<div id="poster">
+    <div class="bg-layer"></div>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+
+    <!-- ══════════ STATIC SVG DECORATION ══════════ -->
+    <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;"
+         viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <radialGradient id="sg" cx="50%" cy="0%" r="100%">
+                <stop offset="0%" stop-color="#C9963A" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="#C9963A" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="glow"><feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="sglow"><feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+
+        <!-- Warm spotlight -->
+        <ellipse cx="540" cy="1120" rx="460" ry="460" fill="url(#sg)"/>
+
+        <!-- ═══ BALLOONS (left cluster) ═══ -->
+        <!-- Gold balloon -->
+        <g transform="translate(105,195)">
+            <ellipse cx="0" cy="0" rx="54" ry="66" fill="#D4920A" opacity="0.9" filter="url(#sglow)"/>
+            <ellipse cx="-15" cy="-20" rx="17" ry="11" fill="rgba(255,225,110,0.32)"/>
+            <ellipse cx="0" cy="67" rx="6" ry="4.5" fill="#A07010"/>
+            <path d="M0,71 Q8,90 3,110 Q-3,128 5,148" stroke="#907020" stroke-width="1.5" fill="none" opacity="0.55"/>
+        </g>
+        <!-- Pink/rose balloon -->
+        <g transform="translate(46,308)">
+            <ellipse cx="0" cy="0" rx="46" ry="57" fill="#C03868" opacity="0.85" filter="url(#sglow)"/>
+            <ellipse cx="-13" cy="-17" rx="14" ry="9" fill="rgba(255,180,210,0.28)"/>
+            <ellipse cx="0" cy="59" rx="5" ry="4" fill="#902850"/>
+            <path d="M0,63 Q6,80 2,96" stroke="#802040" stroke-width="1.5" fill="none" opacity="0.55"/>
+        </g>
+        <!-- Teal balloon (back) -->
+        <g transform="translate(172,132)">
+            <ellipse cx="0" cy="0" rx="42" ry="52" fill="#1A8A9A" opacity="0.8" filter="url(#sglow)"/>
+            <ellipse cx="-12" cy="-15" rx="13" ry="8" fill="rgba(100,220,240,0.26)"/>
+            <ellipse cx="0" cy="54" rx="4.5" ry="3.5" fill="#148090"/>
+            <path d="M0,58 Q5,74 0,90" stroke="#107080" stroke-width="1.5" fill="none" opacity="0.55"/>
+        </g>
+        <!-- Balloon strings to knot -->
+        <g stroke="rgba(201,150,58,0.28)" stroke-width="1.2" fill="none">
+            <path d="M105,261 Q118,360 150,480 Q160,540 155,600"/>
+            <path d="M46,365  Q70,450  150,480 Q160,540 155,600"/>
+            <path d="M172,184 Q170,340 155,480 Q158,540 155,600"/>
+            <circle cx="155" cy="600" r="3" fill="rgba(201,150,58,0.4)" stroke="none"/>
+        </g>
+
+        <!-- ═══ BALLOONS (right cluster) ═══ -->
+        <!-- Gold balloon -->
+        <g transform="translate(968,225)">
+            <ellipse cx="0" cy="0" rx="52" ry="63" fill="#C9963A" opacity="0.92" filter="url(#sglow)"/>
+            <ellipse cx="-14" cy="-18" rx="16" ry="10" fill="rgba(255,220,130,0.32)"/>
+            <ellipse cx="0" cy="65" rx="6" ry="4.5" fill="#A07828"/>
+            <path d="M0,69 Q-8,88 -3,108 Q3,126 -4,145" stroke="#907020" stroke-width="1.5" fill="none" opacity="0.55"/>
+        </g>
+        <!-- Purple balloon -->
+        <g transform="translate(1030,330)">
+            <ellipse cx="0" cy="0" rx="46" ry="56" fill="#7B4BBF" opacity="0.86" filter="url(#sglow)"/>
+            <ellipse cx="-13" cy="-16" rx="14" ry="9" fill="rgba(200,160,255,0.28)"/>
+            <ellipse cx="0" cy="58" rx="5" ry="4" fill="#5830A0"/>
+            <path d="M0,62 Q-6,78 -2,94" stroke="#502890" stroke-width="1.5" fill="none" opacity="0.55"/>
+        </g>
+        <!-- Red balloon (back) -->
+        <g transform="translate(912,152)">
+            <ellipse cx="0" cy="0" rx="41" ry="50" fill="#C03030" opacity="0.8" filter="url(#sglow)"/>
+            <ellipse cx="-12" cy="-14" rx="12" ry="7.5" fill="rgba(255,160,160,0.26)"/>
+            <ellipse cx="0" cy="52" rx="4.5" ry="3.5" fill="#902020"/>
+            <path d="M0,56 Q5,72 0,88" stroke="#801818" stroke-width="1.5" fill="none" opacity="0.55"/>
+        </g>
+        <!-- Right strings to knot -->
+        <g stroke="rgba(201,150,58,0.28)" stroke-width="1.2" fill="none">
+            <path d="M968,288 Q955,390 928,480 Q920,540 924,600"/>
+            <path d="M1030,386 Q1004,468 928,480 Q920,540 924,600"/>
+            <path d="M912,202 Q914,370 924,480 Q922,540 924,600"/>
+            <circle cx="924" cy="600" r="3" fill="rgba(201,150,58,0.4)" stroke="none"/>
+        </g>
+
+        <!-- ═══ STREAMERS ═══ -->
+        <path d="M80,420 Q120,520 85,640 Q50,760 95,880 Q140,1000 100,1100"
+              stroke="#C9963A" stroke-width="2.8" fill="none" stroke-linecap="round" opacity="0.3"/>
+        <path d="M135,440 Q85,540 120,660 Q155,780 110,890"
+              stroke="#C03868" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.25"/>
+        <path d="M1000,410 Q960,510 995,630 Q1030,750 985,870 Q940,990 980,1090"
+              stroke="#C9963A" stroke-width="2.8" fill="none" stroke-linecap="round" opacity="0.3"/>
+        <path d="M945,430 Q995,530 960,650 Q925,770 970,880"
+              stroke="#7B4BBF" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.25"/>
+
+        <!-- ═══ BIRTHDAY CAKE ═══ -->
+        <g transform="translate(540,1832)">
+            <!-- Shadow -->
+            <ellipse cx="0" cy="12" rx="140" ry="16" fill="rgba(0,0,0,0.3)"/>
+            <!-- Bottom tier -->
+            <rect x="-118" y="-52" width="236" height="62" rx="9" fill="#122060" opacity="0.95"/>
+            <!-- Frosting top bottom tier -->
+            <path d="M-118,-52 Q-102,-34 -86,-52 Q-70,-34 -54,-52 Q-38,-34 -22,-52 Q-6,-34 10,-52 Q26,-34 42,-52 Q58,-34 74,-52 Q90,-34 106,-52 Q118,-44 118,-52"
+                  fill="rgba(255,255,255,0.16)" stroke="none"/>
+            <!-- Tier stripes -->
+            <rect x="-118" y="-6" width="236" height="3" rx="1.5" fill="rgba(201,150,58,0.4)"/>
+            <!-- Dots on bottom tier -->
+            <circle cx="-78" cy="-24" r="6" fill="rgba(201,150,58,0.55)"/>
+            <circle cx="-32" cy="-28" r="5" fill="rgba(192,64,104,0.55)"/>
+            <circle cx="14"  cy="-22" r="6" fill="rgba(201,150,58,0.55)"/>
+            <circle cx="58"  cy="-26" r="5" fill="rgba(123,75,191,0.55)"/>
+            <circle cx="96"  cy="-23" r="6" fill="rgba(201,150,58,0.55)"/>
+
+            <!-- Top tier -->
+            <rect x="-80" y="-108" width="160" height="60" rx="9" fill="#0D1E50" opacity="0.95"/>
+            <!-- Frosting top tier -->
+            <path d="M-80,-108 Q-66,-90 -52,-108 Q-38,-90 -24,-108 Q-10,-90 4,-108 Q18,-90 32,-108 Q46,-90 60,-108 Q72,-100 80,-108"
+                  fill="rgba(255,255,255,0.16)" stroke="none"/>
+            <!-- Gold trim -->
+            <rect x="-80" y="-52" width="160" height="3.5" rx="1.5" fill="rgba(201,150,58,0.5)"/>
+            <!-- Small dots top tier -->
+            <circle cx="-44" cy="-78" r="4" fill="rgba(201,150,58,0.5)"/>
+            <circle cx="0"   cy="-82" r="4" fill="rgba(192,64,104,0.5)"/>
+            <circle cx="44"  cy="-78" r="4" fill="rgba(123,75,191,0.5)"/>
+
+            <!-- 5 Candles -->
+            <rect x="-60" y="-148" width="11" height="44" rx="3.5" fill="#E05050"/>
+            <ellipse cx="-54.5" cy="-150" rx="5.5" ry="3.5" fill="#B83838"/>
+
+            <rect x="-28" y="-155" width="11" height="51" rx="3.5" fill="#C9963A"/>
+            <ellipse cx="-22.5" cy="-157" rx="5.5" ry="3.5" fill="#A07828"/>
+
+            <rect x="5"   y="-162" width="13" height="58" rx="4"   fill="#7B4BBF"/>
+            <ellipse cx="11.5"  cy="-164" rx="6.5" ry="4"   fill="#5A38A0"/>
+
+            <rect x="38"  y="-153" width="11" height="49" rx="3.5" fill="#C03868"/>
+            <ellipse cx="43.5"  cy="-155" rx="5.5" ry="3.5" fill="#902850"/>
+
+            <rect x="66"  y="-146" width="11" height="42" rx="3.5" fill="#1A8A9A"/>
+            <ellipse cx="71.5"  cy="-148" rx="5.5" ry="3.5" fill="#147888"/>
+
+            <!-- Flames -->
+            <ellipse cx="-54.5" cy="-165" rx="5.5" ry="10" fill="#FFA030" opacity="0.92" filter="url(#glow)"/>
+            <ellipse cx="-54.5" cy="-168" rx="3"   ry="6"  fill="#FFE060" opacity="0.95"/>
+
+            <ellipse cx="-22.5" cy="-173" rx="5.5" ry="10" fill="#FFA030" opacity="0.92" filter="url(#glow)"/>
+            <ellipse cx="-22.5" cy="-176" rx="3"   ry="6"  fill="#FFE060" opacity="0.95"/>
+
+            <ellipse cx="11.5"  cy="-180" rx="6.5" ry="12" fill="#FFA030" opacity="0.92" filter="url(#glow)"/>
+            <ellipse cx="11.5"  cy="-184" rx="3.5" ry="7"  fill="#FFE060" opacity="0.95"/>
+
+            <ellipse cx="43.5"  cy="-170" rx="5.5" ry="10" fill="#FFA030" opacity="0.92" filter="url(#glow)"/>
+            <ellipse cx="43.5"  cy="-173" rx="3"   ry="6"  fill="#FFE060" opacity="0.95"/>
+
+            <ellipse cx="71.5"  cy="-163" rx="5.5" ry="10" fill="#FFA030" opacity="0.92" filter="url(#glow)"/>
+            <ellipse cx="71.5"  cy="-166" rx="3"   ry="6"  fill="#FFE060" opacity="0.95"/>
+
+            <!-- Flame halos -->
+            <circle cx="-54.5" cy="-168" r="14" fill="rgba(255,160,48,0.13)"/>
+            <circle cx="-22.5" cy="-176" r="14" fill="rgba(255,160,48,0.13)"/>
+            <circle cx="11.5"  cy="-184" r="17" fill="rgba(255,160,48,0.16)"/>
+            <circle cx="43.5"  cy="-173" r="14" fill="rgba(255,160,48,0.13)"/>
+            <circle cx="71.5"  cy="-166" r="14" fill="rgba(255,160,48,0.13)"/>
+        </g>
+
+        <!-- ═══ CONFETTI (static shapes) ═══ -->
+        <g>
+            <!-- Circles -->
+            <circle cx="200" cy="600" r="6"   fill="#C9963A" opacity="0.5"/>
+            <circle cx="880" cy="555" r="5"   fill="#C03868" opacity="0.45"/>
+            <circle cx="145" cy="950" r="4.5" fill="#7B4BBF" opacity="0.42"/>
+            <circle cx="935" cy="920" r="5"   fill="#1A8A9A" opacity="0.42"/>
+            <circle cx="88"  cy="1260" r="4"  fill="#C9963A" opacity="0.38"/>
+            <circle cx="992" cy="1285" r="5"  fill="#C03868" opacity="0.4"/>
+            <!-- Diamonds -->
+            <rect x="262" y="500" width="11" height="11" fill="#F0CE78" opacity="0.52" transform="rotate(45,267,505)"/>
+            <rect x="808" y="478" width="10" height="10" fill="#F0CE78" opacity="0.46" transform="rotate(45,813,483)"/>
+            <rect x="68"  y="775" width="9"  height="9"  fill="#F0CE78" opacity="0.4"  transform="rotate(45,72,779)"/>
+            <rect x="1003" y="748" width="9" height="9"  fill="#F0CE78" opacity="0.4"  transform="rotate(45,1007,752)"/>
+            <rect x="302" y="1400" width="10" height="10" fill="#C9963A" opacity="0.4" transform="rotate(45,307,1405)"/>
+            <rect x="778" y="1378" width="9"  height="9"  fill="#C9963A" opacity="0.38" transform="rotate(45,782,1382)"/>
+            <!-- Stars -->
+            <polygon points="322,722 327,710 332,722 320,714 334,714" fill="#F0CE78" opacity="0.55"/>
+            <polygon points="758,692 763,680 768,692 756,684 770,684" fill="#F0CE78" opacity="0.5"/>
+            <polygon points="98,1102 103,1090 108,1102 96,1094 110,1094" fill="#C9963A" opacity="0.45"/>
+            <polygon points="977,1082 982,1070 987,1082 975,1074 989,1074" fill="#C9963A" opacity="0.45"/>
+            <!-- Sparkle crosses -->
+            <rect x="449" y="76"  width="2" height="18" rx="1" fill="#F0CE78" opacity="0.5" transform="rotate(0,450,85)"/>
+            <rect x="449" y="76"  width="2" height="18" rx="1" fill="#F0CE78" opacity="0.5" transform="rotate(90,450,85)"/>
+            <rect x="625" y="96"  width="2" height="14" rx="1" fill="#F0CE78" opacity="0.42" transform="rotate(45,626,103)"/>
+            <rect x="625" y="96"  width="2" height="14" rx="1" fill="#F0CE78" opacity="0.42" transform="rotate(135,626,103)"/>
+            <rect x="125" y="472" width="2" height="16" rx="1" fill="#F0CE78" opacity="0.4" transform="rotate(0,126,480)"/>
+            <rect x="125" y="472" width="2" height="16" rx="1" fill="#F0CE78" opacity="0.4" transform="rotate(90,126,480)"/>
+            <rect x="947" y="492" width="2" height="14" rx="1" fill="#F0CE78" opacity="0.38" transform="rotate(45,948,499)"/>
+            <rect x="947" y="492" width="2" height="14" rx="1" fill="#F0CE78" opacity="0.38" transform="rotate(135,948,499)"/>
+        </g>
+
+        <!-- Corner line accents -->
+        <g stroke="rgba(201,150,58,0.18)" stroke-width="1" fill="none">
+            <line x1="820" y1="155" x2="1000" y2="155"/>
+            <line x1="1000" y1="155" x2="1000" y2="335"/>
+            <line x1="80"  y1="1765" x2="260"  y2="1765"/>
+            <line x1="80"  y1="1765" x2="80"   y2="1585"/>
+        </g>
+    </svg>
+
+    <!-- ══════════ CONTENT ══════════ -->
+    <div class="content">
+        <div class="logo-wrap">
+            <img src="{{ logo_url }}" alt="Bank Logo" onerror="this.style.opacity='0.3'">
+        </div>
+
+        <div class="eyebrow">
+            <div class="eyebrow-dot"></div>
+            <div class="eyebrow-text">Warm Wishes on Your</div>
+            <div class="eyebrow-dot"></div>
+        </div>
+
+        <div class="bday-headline">Birthday</div>
+
+        <div class="rule">
+            <div class="rule-line"></div>
+            <div class="rule-diamond"></div>
+            <div class="rule-diamond" style="width:6px;height:6px;opacity:0.55;box-shadow:none"></div>
+            <div class="rule-diamond"></div>
+            <div class="rule-line"></div>
+        </div>
+
+        <div class="photo-wrap">
+            <div class="orbit"><div class="orbit-dot"></div></div>
+            <div class="photo-ring"></div>
+            <div class="photo-ring-inner"></div>
+            <div class="photo-circle">
+                <img id="emp-photo" src="{{ photo_url }}" alt="Employee Photo"
+                     onerror="this.style.display='none';document.getElementById('ph-placeholder').style.display='flex'">
+                <div class="photo-placeholder" id="ph-placeholder">
+                    <svg viewBox="0 0 100 100" fill="none">
+                        <circle cx="50" cy="36" r="20" fill="rgba(201,150,58,0.45)"/>
+                        <ellipse cx="50" cy="85" rx="30" ry="18" fill="rgba(201,150,58,0.45)"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="photo-glow"></div>
+        </div>
+
+        <div class="details">
+            <div class="stars-row">
+                <span>✦</span><span class="big">★</span><span>✦</span>
+            </div>
+            <span class="emp-name" id="emp-name">{{ employee_name }}</span>
+            <div class="desig-pill" id="desig-pill">{{ designation }}</div>
+            <div class="branch-text">{{ branch }}</div>
+        </div>
+    </div>
+</div>
+
+<button class="btn-dl" onclick="doExport()">📥 Download Poster PNG</button>
+
+<script>
+function fitText(elId, maxPx, minPx) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    let px = maxPx;
+    el.style.fontSize = px + 'px';
+    while (el.scrollWidth > 920 && px > minPx) {
+        px -= 1;
+        el.style.fontSize = px + 'px';
+    }
+}
+
+function spawnAnimatedConfetti() {
+    const poster = document.getElementById('poster');
+    const colors = ['#C9963A','#F0CE78','#C03868','#7B4BBF','#1A8A9A','#E05050'];
+    for (let i = 0; i < 26; i++) {
+        const color = colors[i % colors.length];
+        const type  = i % 4;
+        const el    = document.createElement('div');
+        el.className = 'confetti-piece';
+        let inner = '';
+        if (type === 0) inner = `width:10px;height:10px;background:${color};border-radius:2px;`;
+        else if (type === 1) inner = `width:9px;height:9px;background:${color};transform:rotate(45deg);`;
+        else if (type === 2) inner = `width:14px;height:5px;background:${color};border-radius:3px;`;
+        else inner = `width:7px;height:7px;background:${color};border-radius:50%;`;
+        const dur  = (4 + Math.random() * 5).toFixed(1);
+        const del  = (Math.random() * 6).toFixed(1);
+        const sy   = `${-(60 + Math.random() * 80)}px`;
+        const ey   = `${1700 + Math.random() * 280}px`;
+        const rot  = `${Math.floor(Math.random() * 720)}deg`;
+        const op   = (0.3 + Math.random() * 0.45).toFixed(2);
+        const left = (2 + Math.random() * 96).toFixed(1);
+        el.style.cssText = `${inner}left:${left}%;top:0%;--dur:${dur}s;--del:${del}s;--sy:${sy};--ey:${ey};--rot:${rot};--op:${op};`;
+        poster.appendChild(el);
+    }
+}
+
+function spawnSparkles() {
+    const poster = document.getElementById('poster');
+    [[9,12,4,0.12,0.45,4,0],[84,8,3,0.1,0.38,5,1.2],[22,28,5,0.18,0.55,3.5,0.4],
+     [77,22,3,0.08,0.35,6,2.1],[4,58,4,0.14,0.48,4.5,1.6],[94,52,3,0.09,0.4,5.5,0.7],
+     [14,78,5,0.2,0.52,4,2.4],[82,74,4,0.14,0.44,3.8,0.2],[48,6,3,0.09,0.34,5.2,1.1],
+     [38,90,4,0.15,0.5,4.3,0.6],[62,86,3,0.1,0.38,5.1,1.9],[52,18,2.5,0.08,0.32,5,2.7]]
+    .forEach(([x,y,s,lo,hi,dur,del]) => {
+        const p = document.createElement('div');
+        p.className = 'sparkle';
+        p.style.cssText = `left:${x}%;top:${y}%;width:${s}px;height:${s}px;`
+            + `--lo:${lo};--hi:${hi};--dur:${dur}s;--del:${del}s;`
+            + `box-shadow:0 0 ${s*3}px rgba(201,150,58,0.7);`;
+        poster.appendChild(p);
+    });
+}
+
+function init() {
+    fitText('emp-name', 88, 26);
+    fitText('desig-pill', 30, 14);
+    spawnAnimatedConfetti();
+    spawnSparkles();
+}
+
+if (document.fonts) document.fonts.ready.then(init);
+else window.addEventListener('load', init);
+
+function doExport() {
+    fitText('emp-name', 88, 26);
+    fitText('desig-pill', 30, 14);
+    const area = document.getElementById('poster');
+    const btn  = document.querySelector('.btn-dl');
+    btn.style.display = 'none';
+    setTimeout(() => {
+        html2canvas(area, {
+            scale:2, useCORS:true, allowTaint:true,
+            backgroundColor:'#010C1E',
+            scrollX:0, scrollY:-window.scrollY,
+            x:0, y:0, width:1080, height:1920,
+            windowWidth:1080, windowHeight:1920,
+        }).then(canvas => {
+            const a = document.createElement('a');
+            a.download = 'Birthday_Poster.png';
+            a.href = canvas.toDataURL('image/png', 1.0);
+            a.click();
+            btn.style.display = 'block';
+        });
+    }, 350);
+}
+</script>
+</body>
+</html>

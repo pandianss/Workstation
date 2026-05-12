@@ -92,3 +92,23 @@ def render_premium_metrics(metrics: dict[str, Any]) -> None:
                     <div class="metric-value">{display_val}</div>
                 </div>
             """, unsafe_allow_html=True)
+
+
+def render_section_divider() -> None:
+    """Renders a premium gold-gradient divider."""
+    st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
+
+
+def render_info_banner(title: str, message: str, icon: str = "✨") -> None:
+    """Renders a premium glassmorphic announcement banner."""
+    st.markdown(f"""
+        <div class="glass-card-gold">
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                <div style="font-size: 1.5rem;">{icon}</div>
+                <div>
+                    <div class="text-gold" style="font-size: 1rem; margin-bottom: 4px;">{title}</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{message}</div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)

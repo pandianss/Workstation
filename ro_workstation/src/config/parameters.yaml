@@ -282,3 +282,8 @@ nil_sanctions:
     display_name: "Vehicle Loans"
     target_categories: ["Vehicle"]
     active: true
+# ------------------------------------------------------------------------------
+# INFRASTRUCTURE & EXTERNAL TOOLS
+# ------------------------------------------------------------------------------
+infrastructure:
+  browser_path: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"

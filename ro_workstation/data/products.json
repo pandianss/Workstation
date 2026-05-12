@@ -4,43 +4,33 @@
             "name": "IOB Housing Loan (Regular)",
             "category": "Retail",
             "interest": "8.40% onwards",
-            "tenure": "30 Years"
-        },
-        {
-            "name": "IOB Clean Loan (Personal)",
-            "category": "Retail",
-            "interest": "11.25%",
-            "tenure": "7 Years"
-        },
-        {
-            "name": "IOB MSME Sahay (GST Based)",
-            "category": "MSME",
-            "interest": "9.15%",
-            "tenure": "5 Years"
+            "tenure": "30 Years",
+            "icon": "🏠",
+            "features": ["No Prepayment Penalty", "Top-up Facility", "Holiday Period"]
         },
         {
             "name": "Jewel Loan (Agriculture)",
             "category": "Agri",
             "interest": "7.25%",
-            "tenure": "1 Year"
+            "tenure": "1 Year",
+            "icon": "💎",
+            "features": ["30 Mins Sanction", "Minimal Docs", "High Per Gram Rate"]
         },
         {
-            "name": "IOB Tax Saver Deposit",
-            "category": "Deposits",
-            "interest": "7.10%",
-            "tenure": "5 Years"
+            "name": "IOB Internet Banking",
+            "category": "Digital",
+            "interest": "N/A",
+            "tenure": "Instant",
+            "icon": "🌐",
+            "features": ["24/7 Transfers", "Bill Payments", "Locker Booking"]
         },
         {
-            "name": "IOB 80 Plus (Senior Citizens)",
-            "category": "Deposits",
-            "interest": "7.75%",
-            "tenure": "444 Days"
-        },
-        {
-            "name": "IOB Education Loan (Vidya Jyoti)",
-            "category": "Retail",
-            "interest": "9.50%",
-            "tenure": "15 Years"
+            "name": "PMJJBY (Life Insurance)",
+            "category": "Social Security",
+            "interest": "Rs.436 / Year",
+            "tenure": "1 Year",
+            "icon": "🏥",
+            "features": ["Rs.2 Lakh Cover", "Auto-Renewal", "Hassle-free Claims"]
         }
     ]
 }

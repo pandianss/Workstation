@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from src.application.services.wizard_service import WizardService
 from src.interface.streamlit.state.services import (
-    get_doc_service, get_circular_service, get_master_service
+    get_doc_service_v2, get_circular_service, get_master_service
 )
 from src.infrastructure.persistence.database import get_db_session
 from src.interface.streamlit.components.primitives import render_action_bar

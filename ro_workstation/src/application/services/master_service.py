@@ -61,9 +61,8 @@ class MasterService:
         self.repo = MasterRepository()
 
     def get_units_frame(self) -> pd.DataFrame:
-        self.sync_if_needed()
         records = self.repo.get_by_category("UNIT")
-        cols = ["Code", "Name", "Type", "District", "Population Group", "Head", "2nd Line", "Effective From", "Active"]
+        cols = ["Code", "Name", "Type", "District", "Population Group", "Head", "2nd Line", "Effective From", "Open Date", "Active"]
         data = []
         for r in records:
             meta = r.metadata or {}
@@ -76,12 +75,12 @@ class MasterService:
                 "Head": str(meta.get("headUserId")) if meta.get("headUserId") else "None",
                 "2nd Line": str(meta.get("secondLineUserId")) if meta.get("secondLineUserId") else "None",
                 "Effective From": meta.get("authority_from", "N/A"),
+                "Open Date": meta.get("openDate", "N/A"),
                 "Active": r.is_active
             })
         return pd.DataFrame(data, columns=cols)
 
     def get_departments_frame(self) -> pd.DataFrame:
-        self.sync_if_needed()
         records = self.repo.get_by_category("DEPT")
         cols = ["Code", "Name (En)", "Name (Hi)", "Name (Ta)", "Email", "Active"]
         data = []
@@ -99,12 +98,11 @@ class MasterService:
 
     def get_staff_frame(self) -> pd.DataFrame:
         """Return staff as a DataFrame for UI display."""
-        self.sync_if_needed()
         staff = self.repo.get_by_category("STAFF")
         cols = [
             "Roll No", "Name (En)", "Name (Hi)", "Name (Ta)", 
             "Branch SOL", "Designation", "Designation (Hi)", "Designation (Ta)",
-            "Grade", "Mobile", "Gender", "Departments", "Posting From", "Posting To", "Active"
+            "Posting From", "Posting To", "DOB", "DOJ", "DOR", "Grade WEF", "Branch WEF", "Active"
         ]
         data = []
         for s in staff:
@@ -124,21 +122,54 @@ class MasterService:
                 "Departments": ", ".join(meta.get("departments", [])) if isinstance(meta.get("departments"), list) else "",
                 "Posting From": meta.get("posting_from", ""),
                 "Posting To": meta.get("posting_to", ""),
+                "DOB": meta.get("dob", ""),
+                "DOJ": meta.get("doj", ""),
+                "DOR": meta.get("dor", ""),
+                "Grade WEF": meta.get("grade_wef", ""),
+                "Branch WEF": meta.get("branch_wef", ""),
                 "Active": s.is_active
             })
         return pd.DataFrame(data, columns=cols)
 
     def sync_staff_from_csv(self) -> None:
-        """Fast synchronization of staff and unit authorities using bulk saves."""
+        """Ingest staff from CSV or Excel files, including seeding files."""
         from src.core.paths import project_path
-        csv_path = project_path("files", "Staff.csv")
-        if not csv_path.exists(): return
+        import pandas as pd
+        import os
         
-        df = pd.read_csv(csv_path)
-        df.columns = [c.strip() for c in df.columns]
+        # 1. Base Staff Data (CSV or Excel)
+        # Try finding Excel first in root
+        project_root = project_path()
+        excel_path = next(project_root.glob("Staff Details*.xlsx"), None)
         
-        # Load everything up front
-        staff_records = {str(r.code): r for r in self.repo.get_by_category("STAFF")}
+        print(f"Sync: Scanning for staff data in {project_root}")
+        if excel_path and excel_path.exists():
+            print(f"Sync: Found Excel source at {excel_path.name}")
+            df = pd.read_excel(excel_path)
+        else:
+            # Try files/Staff.csv
+            csv_path = project_path("files", "Staff.csv")
+            df = pd.read_csv(csv_path) if csv_path.exists() else pd.DataFrame()
+            
+        if df.empty:
+            print("No base staff data found. Skipping sync to prevent deactivation.")
+            return
+            
+        # 2. Supplementary Date Seeding (StfData.csv)
+        seed_path = project_path("StfData.csv")
+        seed_df = pd.read_csv(seed_path) if seed_path.exists() else pd.DataFrame()
+        
+        df.columns = [str(c).strip() for c in df.columns]
+        if not seed_df.empty:
+            seed_df.columns = [str(c).strip() for c in seed_df.columns]
+            # Normalize Seed Roll
+            s_roll_col = next((c for c in seed_df.columns if c.lower() in ["roll", "rollno", "roll no"]), None)
+            if s_roll_col:
+                seed_df[s_roll_col] = seed_df[s_roll_col].apply(lambda x: str(int(float(x))).lstrip('0') if pd.notna(x) else "")
+                seed_df = seed_df.set_index(s_roll_col)
+        
+        # Load everything up front - Normalize keys by stripping leading zeros
+        staff_records = {str(r.code).lstrip('0'): r for r in self.repo.get_by_category("STAFF")}
         unit_records = {str(u.code).zfill(4): u for u in self.repo.get_by_category("UNIT")}
         
         to_save_staff = []
@@ -147,12 +178,30 @@ class MasterService:
         
         for _, row in df.iterrows():
             try:
-                # Support both Bank Format and UI Export Format
-                roll = str(row.get("Roll", row.get("Roll No", ""))).strip()
-                if not roll: continue
+                # Case-insensitive robust mapping with space stripping
+                r_map = {str(k).strip().lower(): v for k, v in row.items()}
                 
-                raw_sol = str(row.get("Br code", row.get("Branch SOL", ""))).strip()
-                if not raw_sol: continue
+                # Support both Bank Format and UI Export Format
+                raw_roll = r_map.get("roll", 
+                           r_map.get("roll no", 
+                           r_map.get("rollno", "")))
+                if not raw_roll: continue
+                
+                # Robust Roll parsing (handle 48243.0 and leading zeros)
+                try:
+                    roll_clean = str(int(float(str(raw_roll).strip()))).lstrip('0')
+                    # Keep original code format but use clean for matching
+                    match_key = roll_clean
+                except:
+                    match_key = str(raw_roll).strip().lstrip('0')
+                
+                if not match_key: continue
+                
+                raw_sol = str(r_map.get("br cd", 
+                              r_map.get("br code", 
+                              r_map.get("branch sol", 
+                              r_map.get("sol", ""))))).strip()
+                if not raw_sol or raw_sol.lower() == "nan": continue
                 
                 # Robust SOL parsing
                 try:
@@ -160,25 +209,66 @@ class MasterService:
                 except:
                     sol = str(raw_sol).zfill(4)
                 
-                name_en = str(row.get("Name", row.get("Name (En)", ""))).strip()
-                name_hi = str(row.get("Name (Hi)", "")).strip()
-                name_ta = str(row.get("Name (Ta)", "")).strip()
+                name_en = str(r_map.get("name", r_map.get("name (en)", ""))).strip()
+                name_hi = str(r_map.get("name (hi)", "")).strip()
+                name_ta = str(r_map.get("name (ta)", "")).strip()
                 
-                desig = str(row.get("Designation", "")).strip()
-                grade = str(row.get("Grade", "")).strip()
-                mobile = str(row.get("Mobile number", row.get("Mobile", ""))).strip()
-                status = str(row.get("Status", "")).strip()
-                effective = str(row.get("Effective", "")).strip()
-                gender = str(row.get("Gender", "M")).strip()
+                desig = str(r_map.get("designation", "")).strip()
+                grade = str(r_map.get("grade", "")).strip()
+                mobile = str(r_map.get("mobile number", r_map.get("mobile", ""))).strip()
+                status = str(r_map.get("status", "")).strip()
+                effective = str(r_map.get("effective", "")).strip()
+                gender = str(r_map.get("gender", "M")).strip()
                 
-                incoming_rolls.add(roll)
+                # Clean date parsing for Excel and DD.MM.YYYY
+                def clean_date(val):
+                    if pd.isna(val) or str(val).lower() == "nat" or not str(val).strip(): return ""
+                    if isinstance(val, (datetime.datetime, datetime.date)):
+                        return val.strftime("%Y-%m-%d")
+                    # Handle DD.MM.YYYY
+                    s_val = str(val).strip()
+                    if "." in s_val and len(s_val.split(".")) == 3:
+                        try:
+                            d, m, y = s_val.split(".")
+                            return f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+                        except: pass
+                    return s_val.split(" ")[0] # Remove time part if present
+
+                dob = clean_date(r_map.get("date of birth", r_map.get("dob", "")))
+                doj = clean_date(r_map.get("date of joining", r_map.get("doj", "")))
+                dor = clean_date(r_map.get("date of retirement", r_map.get("dor", "")))
+                
+                # Override with seed data if available
+                if not seed_df.empty and match_key in seed_df.index:
+                    s_row = seed_df.loc[match_key]
+                    s_map = {str(k).strip().lower(): v for k, v in s_row.to_dict().items()}
+                    s_dob = clean_date(s_map.get("dob", ""))
+                    s_dor = clean_date(s_map.get("dor", ""))
+                    if s_dob: dob = s_dob
+                    if s_dor: dor = s_dor
+
+                # Support shorthand from regional Excel files
+                grade_wef = clean_date(r_map.get("current grade with effect from", 
+                                       r_map.get("grade wef", 
+                                       r_map.get("cugrwef", ""))))
+                branch_wef = clean_date(r_map.get("current branch with effect from", 
+                                        r_map.get("branch wef", 
+                                        r_map.get("curbrwef", ""))))
+                region_wef = clean_date(r_map.get("region with effect from", 
+                                        r_map.get("region wef", 
+                                        r_map.get("regwef", ""))))
+
+                incoming_rolls.add(match_key)
+                # Debug first few rows
+                if len(incoming_rolls) < 5:
+                    print(f"Sync Trace: MatchKey={match_key}, Name={name_en}, DOB={dob}")
                 
                 # Designation Mapping
                 trilingual_desig = DesignationMapper.get_trilingual(desig)
                 
                 # Staff Update
-                if roll in staff_records:
-                    staff = staff_records[roll]
+                if match_key in staff_records:
+                    staff = staff_records[match_key]
                     meta = dict(staff.metadata or {})
                     meta.update({
                         "sol": sol, 
@@ -189,7 +279,13 @@ class MasterService:
                         "grade": grade, 
                         "mobile": mobile,
                         "status": status,
-                        "gender": gender
+                        "gender": gender,
+                        "dob": dob,
+                        "doj": doj,
+                        "dor": dor,
+                        "grade_wef": grade_wef,
+                        "branch_wef": branch_wef,
+                        "region_wef": region_wef
                     })
                     staff.metadata = meta
                     staff.name_en = name_en
@@ -199,7 +295,7 @@ class MasterService:
                     to_save_staff.append(staff)
                 else:
                     new_staff = MasterRecord(
-                        category="STAFF", code=roll, 
+                        category="STAFF", code=str(raw_roll).strip(), 
                         name_en=name_en, 
                         name_hi=name_hi,
                         name_local=name_ta,
@@ -214,6 +310,12 @@ class MasterService:
                             "mobile": mobile, 
                             "status": status,
                             "gender": gender,
+                            "dob": dob,
+                            "doj": doj,
+                            "dor": dor,
+                            "grade_wef": grade_wef,
+                            "branch_wef": branch_wef,
+                            "region_wef": region_wef,
                             "postings": []
                         }
                     )
@@ -241,11 +343,14 @@ class MasterService:
                 print(f"Error processing staff row: {e}")
                 continue
         
-        # Deactivate missing staff
-        for roll, staff in staff_records.items():
-            if roll not in incoming_rolls:
-                staff.is_active = False
-                to_save_staff.append(staff)
+        # Deactivate missing staff - ONLY if we have a healthy amount of incoming data
+        if len(incoming_rolls) > (len(staff_records) * 0.5):
+            for roll_match, staff in staff_records.items():
+                if roll_match not in incoming_rolls:
+                    staff.is_active = False
+                    to_save_staff.append(staff)
+        else:
+            print(f"Suspiciously low staff count ({len(incoming_rolls)} vs {len(staff_records)}). Skipping deactivation safety check.")
         
         # Bulk Save
         if to_save_staff:
@@ -258,6 +363,13 @@ class MasterService:
         sync_file.parent.mkdir(parents=True, exist_ok=True)
         with open(sync_file, 'w') as f:
             json.dump({"last_sync": str(datetime.datetime.now())}, f)
+
+        # Clear Anniversary Cache to reflect new dates immediately
+        try:
+            import streamlit as st
+            st.cache_data.clear()
+            print("Sync: Streamlit cache invalidated successfully.")
+        except: pass
 
     def sync_units_from_csv(self) -> None:
         """Fast synchronization of regional units."""
@@ -281,7 +393,8 @@ class MasterService:
                 "district": str(row["district"]),
                 "populationGroup": str(row["populationGroup"]),
                 "address": str(row["address"]),
-                "size": str(row.get("size", "MEDIUM"))
+                "size": str(row.get("size", "MEDIUM")),
+                "openDate": str(row.get("openDate", ""))
             }
             # Only include head/2nd if they exist in CSV to avoid wiping staff sync
             if pd.notna(row.get("headUserId")): meta["headUserId"] = str(row["headUserId"])
@@ -358,7 +471,6 @@ class MasterService:
 
     def get_ro_executives(self) -> list[dict[str, str]]:
         """Get staff members at RO (3933) who are executives (Scale II+)."""
-        self.sync_if_needed()
         staff = self.repo.get_by_category("STAFF")
         execs = []
         for s in staff:
@@ -442,7 +554,7 @@ class MasterService:
             state["staff"] = os.path.getmtime(csv_path)
             with open(state_path, "w") as f: json.dump(state, f)
 
-    def sync_if_needed(self) -> None:
+    def sync_if_needed(self, force: bool = False) -> None:
         from src.core.paths import project_path
         import json
         state_path = project_path("data", "master_sync.json")
@@ -453,12 +565,21 @@ class MasterService:
             except: state = {}
         
         files = {
-            "staff": project_path().parent / "files" / "Staff.csv",
+            "staff_csv": project_path().parent / "files" / "Staff.csv",
             "branches": project_path().parent / "files" / "branches.csv",
             "departments": project_path().parent / "files" / "departments.csv"
         }
         
-        needs_sync = False
+        # Add Excel check if present
+        for p in project_path().glob("Staff Details*.xlsx"):
+            files["staff_excel"] = p
+            break
+        
+        # Add Seed CSV check
+        seed_p = project_path("StfData.csv")
+        if seed_p.exists(): files["staff_seed"] = seed_p
+        
+        needs_sync = force or not state_path.exists()
         for key, path in files.items():
             if not path.exists(): continue
             mtime = os.path.getmtime(path)
@@ -470,6 +591,9 @@ class MasterService:
             self.sync_units_from_csv()
             self.sync_staff_from_csv()
             self.sync_departments_from_csv()
+            # Update state with current timestamps
+            for key, path in files.items():
+                if path.exists(): state[key] = os.path.getmtime(path)
             with open(state_path, "w") as f: json.dump(state, f)
 
     def update_unit_authorities(self, code: str, head_roll: str, second_roll: str, eff_date: str) -> bool:
@@ -486,7 +610,6 @@ class MasterService:
         return True
     def get_branch_manager(self, sol: str) -> dict:
         """Find the branch head (BH) for a given SOL with trilingual details."""
-        self.sync_if_needed()
         staff = self.repo.get_by_category("STAFF")
         units = self.repo.get_by_category("UNIT")
         target_sol = str(sol).zfill(4)

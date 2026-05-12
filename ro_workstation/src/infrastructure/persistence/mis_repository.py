@@ -26,23 +26,48 @@ class MISRepository:
 
     def mark_file_ingested(self, filename: str) -> None:
         session = self.session_factory()
-        session.add(IngestedFileModel(filename=filename))
-        session.commit()
-        session.close()
+        try:
+            existing = session.query(IngestedFileModel).filter(IngestedFileModel.filename == filename).first()
+            if existing:
+                from datetime import datetime
+                existing.ingested_at = datetime.utcnow()
+            else:
+                session.add(IngestedFileModel(filename=filename))
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def save_records(self, records: list[dict]) -> None:
         session = self.session_factory()
         try:
             objects = []
             valid_keys = set(MISRecordModel.__table__.columns.keys())
+            unique_dates = set()
+            
             for record in records:
                 normalized = {key.lower().replace(" ", "_"): value for key, value in record.items()}
                 filtered = {key: value for key, value in normalized.items() if key in valid_keys}
-                if "date" in filtered and hasattr(filtered["date"], "date"):
-                    filtered["date"] = filtered["date"].date()
-                objects.append(MISRecordModel(**filtered))
-            session.bulk_save_objects(objects)
-            session.commit()
+                
+                # Robust date validation
+                if "date" in filtered and filtered["date"] is not None and not pd.isna(filtered["date"]):
+                    if hasattr(filtered["date"], "date"):
+                        filtered["date"] = filtered["date"].date()
+                    unique_dates.add(filtered["date"])
+                    objects.append(MISRecordModel(**filtered))
+            
+            # Only proceed if we have valid objects with valid dates
+            if unique_dates:
+                # Filter unique_dates to ensure no None/NaN slipped through
+                clean_dates = [d for d in unique_dates if d is not None]
+                if clean_dates:
+                    session.query(MISRecordModel).filter(MISRecordModel.date.in_(clean_dates)).delete(synchronize_session=False)
+            
+            if objects:
+                session.bulk_save_objects(objects)
+                session.commit()
         except Exception:
             session.rollback()
             raise

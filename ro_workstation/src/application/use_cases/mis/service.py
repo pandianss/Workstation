@@ -29,22 +29,45 @@ class MISAnalyticsService:
         from src.core.registry.parameter_service import ParameterRegistry
         self.registry = ParameterRegistry()
 
-    def _ingest_new_files(self) -> None:
+    def sync_database(self) -> list[dict]:
+        """Explicitly triggers synchronization of database with any new MIS Excel files."""
+        return self._ingest_new_files()
+
+    def _ingest_new_files(self) -> list[dict]:
         self.mis_dir.mkdir(parents=True, exist_ok=True)
         self.archive_dir.mkdir(parents=True, exist_ok=True)
+        summaries = []
+        
         for file_path in self.mis_dir.glob("*.xlsx"):
-            if self.repository.is_file_ingested(file_path.name):
-                continue
+            # Process everything in mis_dir; files are moved to archive/ after success
             frame = self.excel_repo.read(file_path)
+            if frame.empty:
+                continue
+                
             if "DATE" in frame.columns:
                 frame["DATE"] = pd.to_datetime(
                     frame["DATE"].astype(str).str.split(".").str[0],
                     format="%Y%m%d",
                     errors="coerce",
                 )
+            
+            dates_in_file = frame["DATE"].dropna().dt.date.unique().tolist()
+            date_str = ", ".join([d.strftime("%d-%b-%Y") for d in dates_in_file])
+            
             self.repository.save_records(frame.to_dict("records"))
             self.repository.mark_file_ingested(file_path.name)
+            
+            summaries.append({
+                "filename": file_path.name,
+                "dates": date_str,
+                "count": len(frame)
+            })
+            
             shutil.move(str(file_path), str(self.archive_dir / file_path.name))
+        
+        # Clear cache after ingestion
+        self.load_frame.clear()
+        return summaries
 
     @st.cache_data(show_spinner=True)
     def load_frame(_self) -> pd.DataFrame:

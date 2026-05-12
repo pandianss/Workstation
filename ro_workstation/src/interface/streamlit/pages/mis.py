@@ -22,6 +22,12 @@ def render() -> None:
     # 1. Page Title
     render_action_bar("Regional MIS Analytics", ["Market Share", "Budget Tracking", "NPA Surveillance"])
     
+    # ─── UPLOAD FEEDBACK ──────────────────────────────────────────────────
+    if "mis_upload_results" in st.session_state:
+        for res in st.session_state["mis_upload_results"]:
+            st.success(f"✅ **Update Successful!** Processed `{res['filename']}`. Data for **{res['dates']}** ({res['count']} units) has been updated in the regional database.")
+        del st.session_state["mis_upload_results"]
+    
     # ─── DATA INGESTION HUB ──────────────────────────────────────────────
     with st.expander("🛠️ Data Maintenance Hub", expanded=False):
         st.caption("Upload source files to update regional database.")
@@ -36,7 +42,11 @@ def render() -> None:
                 with open(mis_dir / mis_file.name, "wb") as f:
                     f.write(mis_file.getbuffer())
                 st.success(f"MIS File '{mis_file.name}' uploaded! Processing...")
-                service.sync_database() # Trigger DB sync
+                results = service.sync_database() # Trigger DB sync
+                if results:
+                    st.session_state["mis_upload_results"] = results
+                else:
+                    st.warning("File uploaded but no new data found (it might already be in the database).")
                 st.rerun()
 
             # Budget Data Ingestion

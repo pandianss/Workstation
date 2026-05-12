@@ -104,7 +104,7 @@ def _render_sidebar() -> str:
     # Define Groups for logical organization
     navigation_structure = {
         "📊 Insights": ["Dashboard", "Business Analytics", "Campaign Management"],
-        "🏗️ Operations": ["Operations & Returns", "Letter Generator", "Document Center", "Coordination Center"],
+        "🏗️ Operations": ["Operations & Returns", "Letter Generator", "High Value DD Note", "Document Center", "Coordination Center"],
         "⚖️ Compliance": ["Returns & Compliance", "DICGC Return", "Branch Visits"],
         "📚 Resources": ["Knowledge Base", "Surveys & Feedback"],
         "🌐 Portals": ["Branch Portal", "Guest Portal"],
@@ -166,6 +166,16 @@ def _render_sidebar() -> str:
             st.session_state["role"] = target_role
             st.rerun()
 
+    # --- System Controls ---
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("🛠️ System & Data", expanded=False):
+        if st.button("🔄 Sync Master Data", key="sync_masters_btn", use_container_width=True, help="Update database from Staff and Branch CSV files."):
+            from src.application.services.master_service import MasterService
+            with st.spinner("Synchronizing..."):
+                MasterService().sync_if_needed()
+            st.success("Master records updated!")
+            st.rerun()
+
     st.sidebar.markdown("---")
     st.sidebar.caption("This interface is backed by the new layered architecture.")
     return page
@@ -206,6 +216,13 @@ def run() -> None:
     if not _require_login():
         st.stop()
     ensure_user_state()
+    
+    # Auto-Sync once on startup if never synced or files changed
+    if "initial_sync_done" not in st.session_state:
+        from src.application.services.master_service import MasterService
+        MasterService().sync_if_needed()
+        st.session_state["initial_sync_done"] = True
+    
     _render_header()
     page = _render_sidebar()
     render_page(page)
