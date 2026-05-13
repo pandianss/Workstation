@@ -177,7 +177,7 @@ def render_office_note_tab(doc_service, get_master_service):
     if "preview_note" in st.session_state:
         st.markdown("### Preview")
         st.components.v1.html(st.session_state["preview_note"], height=500, scrolling=True)
-        col_h, col_p = st.columns(2)
+        col_h, col_p, col_s = st.columns(3)
         params = st.session_state["note_params"]
         with col_h:
             st.download_button("Download HTML", data=st.session_state["preview_note"], file_name="Office_Note.html", mime="text/html", use_container_width=True)
@@ -194,6 +194,33 @@ def render_office_note_tab(doc_service, get_master_service):
                 is_html=params["is_html"]
             )
             st.download_button("Download PDF (Official)", data=pdf_data, file_name="Office_Note.pdf", mime="application/pdf", use_container_width=True)
+        
+        with col_s:
+            from src.application.services.document.office_note_service import OfficeNoteService
+            if st.button("💾 Save to Repository", use_container_width=True, type="primary"):
+                note_service = OfficeNoteService()
+                # Determine next ref if not provided
+                final_ref = params["ref"]
+                if not final_ref:
+                    final_ref = note_service.generate_next_reference(params["dept"])
+                
+                new_note = {
+                    "type": "CUSTOM",
+                    "status": "DRAFT",
+                    "titleEn": params["subject"],
+                    "referenceNo": final_ref,
+                    "parsed_content": {
+                        "deptName": params["dept"],
+                        "details": f"<h3>Introduction</h3>{params['intro']}<h3>Observations</h3>{params['obs']}<h3>Recommendations</h3>{params['recs']}",
+                        "signatorySnapshot": {
+                            "preparer": {"name": params["prep"]},
+                            "reviewers": [{"name": s} for s in params["sigs"]]
+                        },
+                        "noteDate": datetime.date.today().isoformat()
+                    }
+                }
+                note_service.save_note(new_note)
+                st.success(f"Note saved with Ref: {final_ref}")
 
         st.divider()
         st.subheader("Branch Anniversary Note")

@@ -38,7 +38,7 @@
         <tr style="background: #f8fafc;">
             <th style="padding: 12px; border: 1px solid #e2e8f0; text-align: left;">Amount (₹)</th>
             <td style="padding: 12px; border: 1px solid #e2e8f0; font-size: 18px; font-weight: 900; color: #1e3a8a;">
-                ₹ {{ "{:,.2f}".format(amount) }}
+                ₹ {{ amount | format_inr }}
             </td>
         </tr>
         <tr>

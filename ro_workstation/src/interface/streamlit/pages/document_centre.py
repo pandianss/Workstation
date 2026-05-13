@@ -73,7 +73,8 @@ def render_operations_section(gen, master_service):
             st.markdown("#### 📝 Office Notes")
             st.caption("Standardized trilingual internal notes for departmental approvals.")
             if st.button("New Office Note", use_container_width=True, key="btn_new_note"):
-                st.switch_page("pages/execution.py")
+                st.session_state["requested_page"] = "Office Note Generator"
+                st.rerun()
             if st.button("View Note Archive", use_container_width=True, key="btn_note_archive"):
                 st.session_state["requested_page"] = "Office Note Hub"
                 st.rerun()

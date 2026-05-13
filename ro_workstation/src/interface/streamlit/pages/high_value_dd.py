@@ -151,6 +151,34 @@ def render() -> None:
                     use_container_width=True
                 )
         
+        from src.application.services.document.office_note_service import OfficeNoteService
+        if st.button("💾 SAVE TO ARCHIVE", use_container_width=True):
+            note_service = OfficeNoteService()
+            new_note = {
+                "type": "HIGH_VALUE_DD",
+                "status": "DRAFT",
+                "titleEn": f"HIGH VALUE DD - {note_data['applicant_name']}",
+                "referenceNo": note_data['ref_no'],
+                "parsed_content": {
+                    "deptName": "PLANNING",
+                    "branchSol": note_data['branch_sol'],
+                    "applicantName": note_data['applicant_name'],
+                    "applicantAccount": note_data['account_no'],
+                    "kycCompliance": note_data['kyc_status'],
+                    "dateOfIssue": note_data['issue_date'],
+                    "beneficiaryName": note_data['beneficiary_name'],
+                    "ddDrawnOn": note_data['dd_drawn_on'],
+                    "amount": note_data['amount'],
+                    "transactionId": note_data['txn_id'],
+                    "purpose": note_data['purpose'],
+                    "policyCirculars": note_data['circulars'],
+                    "recommendation": note_data['recommendation'],
+                    "noteDate": note_data['note_date']
+                }
+            }
+            note_service.save_note(new_note)
+            st.success("Note archived successfully!")
+        
         if st.button("🔄 Start New Note", use_container_width=True):
             del st.session_state.dd_form
             st.session_state.dd_step = 0

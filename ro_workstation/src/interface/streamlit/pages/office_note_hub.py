@@ -8,28 +8,17 @@ from src.interface.streamlit.components.primitives import (
 )
 from src.interface.streamlit.state.services import get_doc_service_v3
 
+from src.application.services.document.office_note_service import OfficeNoteService
+
 def render():
     st.set_page_config(page_title="Office Note Hub", layout="wide")
     doc_service = get_doc_service_v3()
+    note_service = OfficeNoteService()
     
-    render_action_bar("Office Note Hub", ["Archive", "Search", "Regenerate"])
+    render_action_bar("Office Note Hub", ["Archive", "Search", "Management"])
     
-    # Load Data
-    @st.cache_data
-    def load_data():
-        try:
-            df = pd.read_csv("officeNote.csv")
-            # Parse contentJson
-            df['parsed_content'] = df['contentJson'].apply(lambda x: json.loads(x) if isinstance(x, str) else {})
-            # Extract some fields for filtering
-            df['dept'] = df['parsed_content'].apply(lambda x: x.get('deptName', 'Unknown'))
-            df['created_at_dt'] = pd.to_datetime(df['createdAt'], errors='coerce')
-            return df
-        except Exception as e:
-            st.error(f"Error loading officeNote.csv: {str(e)}")
-            return pd.DataFrame()
-
-    df = load_data()
+    # Load Data via Service
+    df = note_service.get_all()
     if df.empty:
         st.warning("No office notes found in the repository.")
         return
@@ -68,13 +57,9 @@ def render():
     # Main Table
     st.markdown(f"#### Results ({len(filtered_df)})")
     
-    # Prepare display frame
     display_cols = ['id', 'type', 'status', 'titleEn', 'dept', 'createdAt', 'referenceNo']
-    # Filter only available columns
     available_cols = [c for c in display_cols if c in filtered_df.columns]
     
-    # Use standard dataframe with selection if available (Streamlit 1.35+)
-    # Fallback to multiselect if needed, but project seems modern
     event = st.dataframe(
         filtered_df[available_cols],
         use_container_width=True,
@@ -86,12 +71,24 @@ def render():
     
     if event.selection.rows:
         selected_row_idx = event.selection.rows[0]
-        # Map back to filtered_df which might be indexed differently
         selected_note = filtered_df.iloc[selected_row_idx]
-        render_note_details(selected_note, doc_service)
+        render_note_details(selected_note, doc_service, note_service)
 
-def render_note_details(note, doc_service):
+def render_note_details(note, doc_service, note_service):
     st.divider()
+    
+    # Check if in editing mode
+    edit_key = f"edit_{note['id']}"
+    if edit_key not in st.session_state:
+        st.session_state[edit_key] = False
+
+    if st.session_state[edit_key]:
+        render_edit_form(note, note_service)
+        if st.button("Cancel Editing", key=f"cancel_{note['id']}"):
+            st.session_state[edit_key] = False
+            st.rerun()
+        return
+
     st.subheader(f"📄 Note Details: {note['titleEn']}")
     
     content = note['parsed_content']
@@ -152,6 +149,21 @@ def render_note_details(note, doc_service):
 
     with col2:
         st.markdown("#### Actions")
+        
+        c1, c2 = st.columns(2)
+        if c1.button("✏️ Edit Note", use_container_width=True, key=f"edit_btn_{note['id']}"):
+            st.session_state[edit_key] = True
+            st.rerun()
+            
+        if c2.button("🗑️ Delete", use_container_width=True, key=f"del_btn_{note['id']}", type="secondary"):
+            if note_service.delete_note(note['id']):
+                st.success("Note deleted and reference numbers adjusted.")
+                st.rerun()
+            else:
+                st.error("Failed to delete note.")
+
+        st.divider()
+        
         if st.button("🔄 Regenerate PDF", use_container_width=True, type="primary"):
             pdf_bytes = None
             with st.spinner("Generating PDF..."):
@@ -177,16 +189,11 @@ def render_note_details(note, doc_service):
                         pdf_bytes = doc_service.generate_high_value_dd_pdf(mapped_data)
                     
                     elif note['type'] in ['CUSTOM', 'EXPENSE_APPROVAL', 'REVERSAL_CHARGES']:
-                        # Standard office note mapping
                         prep_name = content.get('signatorySnapshot', {}).get('preparer', {}).get('name', 'Staff')
                         rev_list = content.get('signatorySnapshot', {}).get('reviewers', [])
                         sigs = [s.get('name') for s in rev_list] if isinstance(rev_list, list) else []
                         
-                        # Handle specific types by mapping their fields to standard note fields
-                        intro = ""
-                        obs = ""
-                        recs = ""
-                        
+                        intro, obs, recs = "", "", ""
                         if note['type'] == 'EXPENSE_APPROVAL':
                             intro = f"Proposed expenditure of ₹{content.get('proposedAmount')} for {content.get('vendorName')}."
                             obs = content.get('expensePurpose', '')
@@ -199,33 +206,48 @@ def render_note_details(note, doc_service):
                             obs = content.get('details', '')
                         
                         pdf_bytes = doc_service.generate_pdf_note(
-                            department=note['dept'],
-                            subject=note['titleEn'],
-                            intro_text=intro,
-                            observations=obs, 
-                            recommendations=recs, 
-                            prepared_by=prep_name,
-                            ref_no=note['referenceNo'],
-                            date=content.get('noteDate'),
-                            signatories=sigs,
-                            is_html=True
+                            department=note['dept'], subject=note['titleEn'],
+                            intro_text=intro, observations=obs, recommendations=recs, 
+                            prepared_by=prep_name, ref_no=note['referenceNo'],
+                            date=content.get('noteDate'), signatories=sigs, is_html=True
                         )
                 except Exception as e:
                     st.error(f"Failed to generate PDF: {str(e)}")
             
             if pdf_bytes:
-                st.download_button(
-                    "📥 Click to Download PDF",
-                    data=pdf_bytes,
-                    file_name=f"Note_{note['id'][:8]}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            else:
-                st.warning("Automated PDF regeneration not supported for this type yet or mapping failed.")
+                st.download_button("📥 Download PDF", data=pdf_bytes, file_name=f"Note_{note['id'][:8]}.pdf", mime="application/pdf", use_container_width=True)
 
         if st.button("📋 Copy Raw JSON", use_container_width=True):
             st.code(json.dumps(content, indent=2), language="json")
+
+def render_edit_form(note, note_service):
+    st.subheader(f"✏️ Editing: {note['titleEn']}")
+    with st.form(f"form_edit_{note['id']}"):
+        new_title = st.text_input("Note Title", value=note['titleEn'])
+        new_status = st.selectbox("Status", ["DRAFT", "PENDING", "FINALIZED"], index=["DRAFT", "PENDING", "FINALIZED"].index(note['status']))
+        
+        st.markdown("#### Note Content (JSON Editor)")
+        st.caption("Advanced: Modify the underlying data structure.")
+        content_json_str = st.text_area("Content Payload", value=json.dumps(note['parsed_content'], indent=2), height=300)
+        
+        if st.form_submit_button("💾 Save Changes", use_container_width=True):
+            try:
+                new_content = json.loads(content_json_str)
+                updated_note = dict(note)
+                updated_note['titleEn'] = new_title
+                updated_note['status'] = new_status
+                updated_note['parsed_content'] = new_content
+                # Remove extra columns before saving
+                updated_note.pop('dept', None)
+                updated_note.pop('created_at_dt', None)
+                
+                note_service.save_note(updated_note)
+                st.success("Changes saved successfully!")
+                st.session_state[f"edit_{note['id']}"] = False
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to save: {str(e)}")
+
 
 if __name__ == "__main__":
     render()
