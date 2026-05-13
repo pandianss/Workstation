@@ -4,7 +4,7 @@ import datetime
 import textwrap
 from src.application.services.campaign_service import CampaignService
 from src.interface.streamlit.components.primitives import render_action_bar
-from src.interface.streamlit.state.services import get_doc_service_v2
+from src.interface.streamlit.state.services import get_doc_service_v3
 
 def get_metric_icon(metric: str) -> str:
     """Returns SVG path data for metrics."""
@@ -22,7 +22,7 @@ def get_metric_icon(metric: str) -> str:
 
 def render() -> None:
     service = CampaignService()
-    doc_service = get_doc_service_v2()
+    doc_service = get_doc_service_v3()
     render_action_bar("Regional Campaigns", ["Strategic Drives", "Performance Command", "Publicity"])
     
     # 🏆 Hero Banner

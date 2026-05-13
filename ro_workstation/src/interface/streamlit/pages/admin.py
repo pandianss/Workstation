@@ -85,7 +85,7 @@ def render() -> None:
         
         with col4:
             eff_date_val = st.date_input("Effective From", value=datetime.date.today())
-            eff_date = eff_date_val.strftime("%Y-%m-%d")
+            eff_date = eff_date_val.strftime("%d.%m.%Y")
             
         if st.button("💾 Update Unit Authorities", use_container_width=True):
             if master_service.update_unit_authorities(selected_unit_code, new_head, new_second, eff_date):
@@ -146,8 +146,8 @@ def render() -> None:
 
                     if st.form_submit_button("💾 Save Changes & Archive History"):
                         # Format back to string
-                        p_from_str = new_p_from.strftime("%Y-%m-%d")
-                        p_to_str = new_p_to.strftime("%Y-%m-%d") if new_p_to else ""
+                        p_from_str = new_p_from.strftime("%d.%m.%Y")
+                        p_to_str = new_p_to.strftime("%d.%m.%Y") if new_p_to else ""
                         
                         # 1. Update Core Details
                         detail_ok = master_service.update_staff_details(search_roll, new_hi, new_ta, new_sol, new_desig, new_gender, p_from_str, p_to_str)

@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 from src.interface.streamlit.state.services import (
-    get_mis_service, get_circular_service, get_doc_service_v2, get_master_service
+    get_mis_service, get_circular_service, get_doc_service_v3, get_master_service
 )
 from src.application.services.communication_service import CommunicationService
 from src.infrastructure.persistence.database import get_db_session
@@ -54,7 +54,7 @@ def render() -> None:
     # --- TAB: CIRCULARS ---
     with tabs[1]:
         circ_service = get_circular_service()
-        doc_service = get_doc_service_v2()
+        doc_service = get_doc_service_v3()
         all_circs = circ_service.get_all()
         
         st.markdown("### 📢 Regional Notifications")

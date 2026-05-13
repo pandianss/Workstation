@@ -5,7 +5,7 @@ import pandas as pd
 from src.infrastructure.persistence.budget_repository import BudgetRepository
 from src.infrastructure.persistence.advances_repository import AdvancesRepository
 from src.application.use_cases.mis.service import MISAnalyticsService
-from src.application.services.document_service import DocumentService
+from src.application.services.document import DocumentService
 from src.application.services.master_service import MasterService
 from src.core.utils.financial_year import get_fy_start
 

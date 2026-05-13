@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import pandas as pd
 from typing import Any
-from src.application.services.document_service import DocumentService
+from src.application.services.document import DocumentService
 from jinja2 import Template
 
 

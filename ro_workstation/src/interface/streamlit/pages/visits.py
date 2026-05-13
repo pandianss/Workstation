@@ -8,7 +8,7 @@ import pandas as pd
 
 from src.infrastructure.persistence.database import get_db_session
 from src.application.services.visit_service import VisitService
-from src.application.services.document_service import DocumentService
+from src.application.services.document import DocumentService
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table
 from src.infrastructure.persistence.master_repository import MasterRepository
 
@@ -69,7 +69,7 @@ def render() -> None:
                 for v in visits:
                     visit_data.append({
                         "ID": v.id,
-                        "Date": v.visit_date.strftime("%d-%m-%Y"),
+                        "Date": v.visit_date.strftime("%d.%m.%Y"),
                         "SOL": v.sol,
                         "Branch": v.branch_name,
                         "Executive": v.visitor_name,

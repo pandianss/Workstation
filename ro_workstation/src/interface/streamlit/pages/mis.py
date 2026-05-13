@@ -363,7 +363,7 @@ def render() -> None:
         with col_title:
             st.subheader("🏆 Business Milestones Record")
         with col_pdf:
-            from src.application.services.document_service import DocumentService
+            from src.application.services.document import DocumentService
             doc_service = DocumentService()
             
             # Prepare summary for PDF (Count by Parameter)

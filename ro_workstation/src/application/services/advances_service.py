@@ -241,7 +241,7 @@ class AdvancesService:
             }
 
         summary = {
-            'report_date': report_date.strftime('%Y-%m-%d'),
+            'report_date': report_date.strftime("%d.%m.%Y"),
             'total_count': len(df),
             'total_balance_cr': df['BALANCE_CR'].sum(),
             'total_limit_cr': df['LIMIT_CR'].sum(),
@@ -329,7 +329,7 @@ class AdvancesService:
             details_df = details_df[details_cols]
             details_df.columns = ['SOL', 'Branch Name', 'Account Name', 'Account No', 'Category', 'Subdivision', 'Amount (Cr)', 'Sanction Date']
             # Format date for Excel
-            details_df['Sanction Date'] = details_df['Sanction Date'].dt.strftime('%d-%m-%Y')
+            details_df['Sanction Date'] = details_df['Sanction Date'].dt.strftime("%d.%m.%Y")
             details_df.to_excel(writer, sheet_name='Detailed Sanctions', index=False)
             
         return output.getvalue()

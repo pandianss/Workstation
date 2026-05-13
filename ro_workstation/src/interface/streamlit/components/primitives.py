@@ -46,18 +46,24 @@ def render_action_bar(title: str, actions: list[str]) -> None:
 
 
 def render_data_table(frame: pd.DataFrame, title: str, export_name: str) -> None:
+    # Unified date formatting for all datetime columns
+    display_df = frame.copy()
+    for col in display_df.columns:
+        if pd.api.types.is_datetime64_any_dtype(display_df[col]):
+            display_df[col] = display_df[col].dt.strftime('%d.%m.%Y')
+
     st.markdown(
         f"""
         <div class="glass-panel" style="margin-bottom: 0.75rem;">
             <div class="section-title"><strong>{title}</strong></div>
-            <div class="table-count">{len(frame)} row(s)</div>
+            <div class="table-count">{len(display_df)} row(s)</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.dataframe(frame, use_container_width=True, hide_index=True, height=420)
+    st.dataframe(display_df, use_container_width=True, hide_index=True, height=420)
     buffer = io.BytesIO()
-    frame.to_excel(buffer, index=False)
+    display_df.to_excel(buffer, index=False)
     st.download_button("Export to Excel", data=buffer.getvalue(), file_name=export_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 

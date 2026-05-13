@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 import datetime
+import getpass
 
 from src.application.services.session_service import SessionService
 from src.core.config.config_loader import get_app_settings
@@ -104,7 +105,7 @@ def _render_sidebar() -> str:
     # Define Groups for logical organization
     navigation_structure = {
         "📊 Insights": ["Dashboard", "Business Analytics", "Campaign Management"],
-        "🏗️ Operations": ["Operations & Returns", "Letter Generator", "High Value DD Note", "Document Center", "Coordination Center"],
+        "🏗️ Operations": ["Operations & Returns", "Letter Generator", "High Value DD Note", "Office Note Hub", "Document Center", "Coordination Center"],
         "⚖️ Compliance": ["Returns & Compliance", "DICGC Return", "Branch Visits"],
         "📚 Resources": ["Knowledge Base", "Surveys & Feedback"],
         "🌐 Portals": ["Branch Portal", "Guest Portal"],
@@ -147,7 +148,6 @@ def _render_sidebar() -> str:
                 if st.form_submit_button("Elevate Privileges", use_container_width=True):
                     settings = get_app_settings()
                     if admin_pass == settings.admin_password:
-                        from src.application.services.session_service import SessionService
                         SessionService().start_session(getpass.getuser())
                         st.success("Admin access granted!")
                         st.rerun()

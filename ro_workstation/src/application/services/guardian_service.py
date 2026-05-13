@@ -17,7 +17,7 @@ class GuardianService:
         records = self.repo.read()
         payload = {
             "timestamp": datetime.now().isoformat(),
-            "date": datetime.now().strftime("%Y-%m-%d"),
+            "date": datetime.now().strftime("%d.%m.%Y"),
             "go_username": go_username,
             "sol": sol,
             "details": details,

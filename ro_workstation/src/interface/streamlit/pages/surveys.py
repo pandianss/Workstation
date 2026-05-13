@@ -116,7 +116,7 @@ def render() -> None:
             if st.form_submit_button("Deploy to Network"):
                 service.save_survey({
                     "title": title,
-                    "deadline": deadline.strftime("%Y-%m-%d"),
+                    "deadline": deadline.strftime("%d.%m.%Y"),
                     "status": "Open",
                     "url": form_url
                 })

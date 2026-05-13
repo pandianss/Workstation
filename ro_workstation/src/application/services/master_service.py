@@ -62,20 +62,25 @@ class MasterService:
 
     def get_units_frame(self) -> pd.DataFrame:
         records = self.repo.get_by_category("UNIT")
+        staff = {s.code: s.name_en for s in self.repo.get_by_category("STAFF")}
+        
         cols = ["Code", "Name", "Type", "District", "Population Group", "Head", "2nd Line", "Effective From", "Open Date", "Active"]
         data = []
         for r in records:
             meta = r.metadata or {}
+            h_id = meta.get("headUserId")
+            s_id = meta.get("secondLineUserId")
+            
             data.append({
                 "Code": str(r.code),
                 "Name": r.name_en,
                 "Type": meta.get("type"),
                 "District": meta.get("district"),
                 "Population Group": meta.get("populationGroup"),
-                "Head": str(meta.get("headUserId")) if meta.get("headUserId") else "None",
-                "2nd Line": str(meta.get("secondLineUserId")) if meta.get("secondLineUserId") else "None",
-                "Effective From": meta.get("authority_from", "N/A"),
-                "Open Date": meta.get("openDate", "N/A"),
+                "Head": staff.get(str(h_id), "None") if h_id else "None",
+                "2nd Line": staff.get(str(s_id), "None") if s_id else "None",
+                "Effective From": pd.to_datetime(meta.get("authority_from"), errors='coerce'),
+                "Open Date": pd.to_datetime(meta.get("openDate"), errors='coerce'),
                 "Active": r.is_active
             })
         return pd.DataFrame(data, columns=cols)
@@ -120,13 +125,13 @@ class MasterService:
                 "Mobile": meta.get("mobile", ""),
                 "Gender": meta.get("gender", "M"),
                 "Departments": ", ".join(meta.get("departments", [])) if isinstance(meta.get("departments"), list) else "",
-                "Posting From": meta.get("posting_from", ""),
-                "Posting To": meta.get("posting_to", ""),
-                "DOB": meta.get("dob", ""),
-                "DOJ": meta.get("doj", ""),
-                "DOR": meta.get("dor", ""),
-                "Grade WEF": meta.get("grade_wef", ""),
-                "Branch WEF": meta.get("branch_wef", ""),
+                "Posting From": pd.to_datetime(meta.get("posting_from"), errors='coerce'),
+                "Posting To": pd.to_datetime(meta.get("posting_to"), errors='coerce'),
+                "DOB": pd.to_datetime(meta.get("dob"), errors='coerce'),
+                "DOJ": pd.to_datetime(meta.get("doj"), errors='coerce'),
+                "DOR": pd.to_datetime(meta.get("dor"), errors='coerce'),
+                "Grade WEF": pd.to_datetime(meta.get("grade_wef"), errors='coerce'),
+                "Branch WEF": pd.to_datetime(meta.get("branch_wef"), errors='coerce'),
                 "Active": s.is_active
             })
         return pd.DataFrame(data, columns=cols)
@@ -139,7 +144,7 @@ class MasterService:
         
         # 1. Base Staff Data (CSV or Excel)
         # Try finding Excel first in root
-        project_root = project_path()
+        project_root = project_path("files")
         excel_path = next(project_root.glob("Staff Details*.xlsx"), None)
         
         print(f"Sync: Scanning for staff data in {project_root}")
@@ -156,7 +161,7 @@ class MasterService:
             return
             
         # 2. Supplementary Date Seeding (StfData.csv)
-        seed_path = project_path("StfData.csv")
+        seed_path = project_path("files", "StfData.csv")
         seed_df = pd.read_csv(seed_path) if seed_path.exists() else pd.DataFrame()
         
         df.columns = [str(c).strip() for c in df.columns]
@@ -224,7 +229,7 @@ class MasterService:
                 def clean_date(val):
                     if pd.isna(val) or str(val).lower() == "nat" or not str(val).strip(): return ""
                     if isinstance(val, (datetime.datetime, datetime.date)):
-                        return val.strftime("%Y-%m-%d")
+                        return val.strftime("%d.%m.%Y")
                     # Handle DD.MM.YYYY
                     s_val = str(val).strip()
                     if "." in s_val and len(s_val.split(".")) == 3:
@@ -515,7 +520,7 @@ class MasterService:
                 "sol": meta.get("sol"),
                 "designation": meta.get("designation"),
                 "from": meta.get("posting_from"),
-                "to": datetime.date.today().strftime("%Y-%m-%d")
+                "to": datetime.date.today().strftime("%d.%m.%Y")
             })
             meta["postings"] = history
             

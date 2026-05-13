@@ -43,7 +43,7 @@ def render() -> None:
         
         with sub_tabs[0]:
             from src.interface.streamlit.pages.execution import render_office_note_tab
-            from src.application.services.document_service import DocumentService
+            from src.application.services.document import DocumentService
             render_office_note_tab(DocumentService(), MasterService)
             
         with sub_tabs[1]:
@@ -136,7 +136,7 @@ def render() -> None:
                     st.error("Cannot generate certificate for unknown roll number.")
                 else:
                     with st.spinner("Generating Certificate..."):
-                        from src.application.services.document_service import DocumentService
+                        from src.application.services.document import DocumentService
                         doc_service = DocumentService()
                         pdf_bytes = doc_service.generate_appreciation_certificate_pdf(
                             recipient_roll=recip_roll.strip(),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import streamlit as st
-from src.application.services.document_service import DocumentService
+from src.application.services.document import DocumentService
 from src.application.services.task_service import TaskService
 from src.application.services.circular_service import CircularService
 from src.application.services.returns_service import ReturnsService
@@ -13,7 +13,7 @@ from src.application.services.master_service import MasterService
 # Cache invalidation trigger v3 - force reload for High Value DD methods
 # Force reload v4
 @st.cache_resource
-def get_doc_service_v2():
+def get_doc_service_v3():
     return DocumentService()
 
 @st.cache_resource

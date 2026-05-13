@@ -7,7 +7,7 @@ import streamlit as st
 
 from src.application.services.circular_service import CircularService
 from src.interface.streamlit.state.services import (
-    get_doc_service_v2, get_task_service, get_circular_service, 
+    get_doc_service_v3, get_task_service, get_circular_service, 
     get_mm_service, get_master_service
 )
 from src.interface.streamlit.components.primitives import render_action_bar, render_chart_container, render_data_table
@@ -21,7 +21,7 @@ def prepare_content(text: str, use_html: bool) -> str:
 
 def render() -> None:
     task_service = get_task_service()
-    doc_service = get_doc_service_v2()
+    doc_service = get_doc_service_v3()
     mm_service = get_mm_service()
     circ_service = get_circular_service()
 
@@ -93,12 +93,14 @@ def render_circular_management_tab(circ_service, doc_service):
                             is_new = True
                     except: pass
                     
-                    subject = c.get("subject") or c.get("title") or "Untitled Circular"
-                    ref = c.get("ref_no") or c.get("number") or "N/A"
-                    date_str = c.get("date", "N/A")
-                    
+                    # Unified date formatting
+                    try:
+                        p_date = datetime.datetime.fromisoformat(date_str) if 'T' in date_str else datetime.datetime.strptime(date_str, "%Y-%m-%d")
+                        fmt_date = p_date.strftime("%d.%m.%Y")
+                    except: fmt_date = date_str
+
                     st.markdown(f"### {'🆕 ' if is_new else ''}{subject}")
-                    st.markdown(f"**Ref:** `{ref}` | **Date:** {date_str} | **Author:** {c.get('author', 'Regional Office')}")
+                    st.markdown(f"**Ref:** `{ref}` | **Date:** {fmt_date} | **Author:** {c.get('author', 'Regional Office')}")
                 
                 with col_action:
                     st.write("") 

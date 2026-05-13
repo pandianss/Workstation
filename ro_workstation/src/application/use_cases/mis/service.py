@@ -127,17 +127,22 @@ class MISAnalyticsService:
         frame["NPA %"] = np.where(frame["TOTAL ADVANCES"] > 0, npa / frame["TOTAL ADVANCES"] * 100, 0).round(2)
         return frame
 
-    def build_snapshot(self, filters: MISFilter) -> MISSnapshot | None:
+    def build_snapshot(self, filters: MISFilter | None) -> MISSnapshot | None:
         frame = self.get_data()
         if frame.empty:
             return None
         dates = sorted(frame["DATE"].dropna().dt.date.unique())
-        selected_date = filters.selected_date or dates[-1]
+        
+        # Robust handling for None filters
+        selected_date = filters.selected_date if filters and filters.selected_date else dates[-1]
+        sols = filters.sols if filters else None
+        
         selected = frame[frame["DATE"].dt.date == selected_date].copy()
         history = frame.copy()
-        if filters.sols:
-            selected = selected[selected["SOL"].isin(filters.sols)]
-            history = history[history["SOL"].isin(filters.sols)]
+        
+        if sols:
+            selected = selected[selected["SOL"].isin(sols)]
+            history = history[history["SOL"].isin(sols)]
         elif self.settings.region_code.isdigit():
             aggregate_sol = int(self.settings.region_code)
             regional = selected[selected["SOL"] == aggregate_sol]

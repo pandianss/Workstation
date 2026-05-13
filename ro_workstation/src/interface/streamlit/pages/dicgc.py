@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import streamlit as st
 import pandas as pd
-from src.application.services.document_service import DocumentService
+from src.application.services.document import DocumentService
 from src.application.services.dicgc_service import DICGCService
 from src.infrastructure.persistence.database import get_db_session
 from src.interface.streamlit.components.primitives import render_action_bar

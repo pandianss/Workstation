@@ -6,7 +6,8 @@ from importlib import import_module
 PAGE_REGISTRY = {
     "Dashboard": "src.interface.streamlit.pages.dashboard",
     "Operations & Returns": "src.interface.streamlit.pages.operational_wizards",
-    "Document Center": "src.interface.streamlit.pages.execution",
+    "Document Command Centre": "src.interface.streamlit.pages.document_centre",
+    "Administrative Desk": "src.interface.streamlit.pages.execution",
     "Business Analytics": "src.interface.streamlit.pages.mis",
     "Returns & Compliance": "src.interface.streamlit.pages.returns",
     "Coordination Center": "src.interface.streamlit.pages.coordination",
@@ -21,6 +22,7 @@ PAGE_REGISTRY = {
     "Guest Portal": "src.interface.streamlit.pages.guest_portal",
     "Anniversary Portal": "src.interface.streamlit.pages.anniversary_portal",
     "High Value DD Note": "src.interface.streamlit.pages.high_value_dd",
+    "Office Note Hub": "src.interface.streamlit.pages.office_note_hub",
 }
 
 

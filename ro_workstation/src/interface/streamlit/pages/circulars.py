@@ -32,5 +32,5 @@ def render() -> None:
             submit = st.form_submit_button("Archive Circular")
             
             if submit and file:
-                service.add_circular(title, number, cat, date.strftime("%Y-%m-%d"), file.name)
+                service.add_circular(title, number, cat, date.strftime("%d.%m.%Y"), file.name)
                 st.success("Circular archived successfully!")
