@@ -30,9 +30,20 @@ def render() -> None:
         return
 
     from src.application.services.master_service import MasterService
-    master_service = MasterService()
-    admin_service = AdminService()
+    
+    # Cache the service instance to avoid multiple DB connections/instantiations
+    @st.cache_resource
+    def get_services():
+        return MasterService(), AdminService()
+    
+    master_service, admin_service = get_services()
     audit_logger = AuditLogger()
+    
+    # Cache the dataframes to improve UI responsiveness
+    @st.cache_data(ttl=600) # 10 minute cache
+    def load_cached_frames():
+        return master_service.get_units_frame(), master_service.get_staff_frame(), master_service.get_departments_frame()
+
     tabs = st.tabs(["👥 Users", "🏦 Units", "👨‍💼 Staff", "🏢 Departments", "📜 Audit", "⚙️ Configuration"])
 
     with tabs[0]:
@@ -42,12 +53,11 @@ def render() -> None:
         if "unit_update_msg" in st.session_state:
             st.success(st.session_state.pop("unit_update_msg"))
             
-        units_df = master_service.get_units_frame()
+        units_df, staff_df, depts_df = load_cached_frames()
         render_data_table(units_df, "Unit Registry", "units.xlsx")
         
         st.divider()
         st.markdown("### 👑 Assign Unit Authorities")
-        staff_df = master_service.get_staff_frame()
         
         col1, col2, col3, col4 = st.columns([1.5, 1.5, 1.5, 1])
         with col1:
@@ -88,13 +98,15 @@ def render() -> None:
             eff_date = eff_date_val.strftime("%d.%m.%Y")
             
         if st.button("💾 Update Unit Authorities", use_container_width=True):
-            if master_service.update_unit_authorities(selected_unit_code, new_head, new_second, eff_date):
-                st.session_state["unit_update_msg"] = f"✅ Authorities updated successfully for Unit {selected_unit_code}"
-                st.rerun()
+            with st.spinner("Updating Unit Authorities..."):
+                if master_service.update_unit_authorities(selected_unit_code, new_head, new_second, eff_date):
+                    st.cache_data.clear()
+                    st.session_state["unit_update_msg"] = f"✅ Authorities updated successfully for Unit {selected_unit_code}"
+                    st.rerun()
 
     with tabs[2]:
         st.markdown("### 👨‍💼 Regional Staff Registry")
-        staff_df = master_service.get_staff_frame()
+        units_df, staff_df, depts_df = load_cached_frames()
         render_data_table(staff_df, "Staff Registry", "staff.xlsx")
         
         # --- Staff Details Section ---
@@ -134,7 +146,6 @@ def render() -> None:
                         new_p_to = st.date_input("Posting To (Optional)", value=def_to)
                     
                     # Department Allotment for RO Staff
-                    depts_df = master_service.get_departments_frame()
                     dept_options = sorted(depts_df['Code'].tolist()) if not depts_df.empty else []
                     current_depts = s_row['Departments'].split(", ") if s_row['Departments'] else []
                     
@@ -145,20 +156,22 @@ def render() -> None:
                                              help="RO staff (SOL 3933) can be assigned to multiple departments.")
 
                     if st.form_submit_button("💾 Save Changes & Archive History"):
-                        # Format back to string
-                        p_from_str = new_p_from.strftime("%d.%m.%Y")
-                        p_to_str = new_p_to.strftime("%d.%m.%Y") if new_p_to else ""
-                        
-                        # 1. Update Core Details
-                        detail_ok = master_service.update_staff_details(search_roll, new_hi, new_ta, new_sol, new_desig, new_gender, p_from_str, p_to_str)
-                        # 2. Update Department Allotment
-                        allot_ok = master_service.allot_staff_to_departments(search_roll, new_depts)
-                        
-                        if detail_ok and allot_ok:
-                            st.session_state["unit_update_msg"] = f"✅ Updated profile and department links for {search_roll}"
-                            st.rerun()
-                        else:
-                            st.error("Failed to update staff record.")
+                        with st.spinner("Saving Staff Changes..."):
+                            # Format back to string
+                            p_from_str = new_p_from.strftime("%d.%m.%Y")
+                            p_to_str = new_p_to.strftime("%d.%m.%Y") if new_p_to else ""
+                            
+                            # 1. Update Core Details
+                            detail_ok = master_service.update_staff_details(search_roll, new_hi, new_ta, new_sol, new_desig, new_gender, p_from_str, p_to_str)
+                            # 2. Update Department Allotment
+                            allot_ok = master_service.allot_staff_to_departments(search_roll, new_depts)
+                            
+                            if detail_ok and allot_ok:
+                                st.cache_data.clear()
+                                st.session_state["unit_update_msg"] = f"✅ Updated profile and department links for {search_roll}"
+                                st.rerun()
+                            else:
+                                st.error("Failed to update staff record.")
                 
                 # Show History if exists
                 meta = next((r.metadata for r in master_service.repo.get_by_category("STAFF") if r.code == search_roll), {})
@@ -169,7 +182,8 @@ def render() -> None:
                 st.warning("Staff member not found.")
 
     with tabs[3]:
-        render_data_table(master_service.get_departments_frame(), "Department Registry", "departments.xlsx")
+        units_df, staff_df, depts_df = load_cached_frames()
+        render_data_table(depts_df, "Department Registry", "departments.xlsx")
 
     with tabs[4]:
         render_data_table(audit_logger.to_frame(), "Audit trail", "audit_log.xlsx")

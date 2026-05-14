@@ -26,11 +26,12 @@ def render() -> None:
         
         # 2. Key Regional Metrics
         st.markdown("### 📊 Regional Business Snapshot")
+        from src.core.utils.number_utils import format_indian_number
         render_premium_metrics({
-            "Total Deposits": f"₹ {latest_data['TOTAL DEPOSITS'].sum():,.2f} Cr",
-            "Total Advances": f"₹ {latest_data['TOTAL ADVANCES'].sum():,.2f} Cr",
+            "Total Deposits": f"₹ {format_indian_number(latest_data['TOTAL DEPOSITS'].sum())} Cr",
+            "Total Advances": f"₹ {format_indian_number(latest_data['TOTAL ADVANCES'].sum())} Cr",
             "CD Ratio": f"{latest_data['CD RATIO'].mean():.2f}%",
-            "Low Cost (CASA)": f"{latest_data['CASA'].sum():,.2f} Cr",
+            "Low Cost (CASA)": f"₹ {format_indian_number(latest_data['CASA'].sum())} Cr",
         })
 
         st.markdown("<br>", unsafe_allow_html=True)

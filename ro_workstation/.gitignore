@@ -1,0 +1,31 @@
+# Python bytecode and local tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments and secrets
+.env
+.venv/
+venv/
+env/
+
+# Runtime databases, logs, and generated exports
+data/*.db
+data/*.sqlite
+data/audit.log
+data/knowledge_docs/
+data/test_runtime/ro_ws_*/
+files/generated/
+backups/
+wheels/
+
+# Streamlit local runtime
+.streamlit/secrets.toml
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+~$*

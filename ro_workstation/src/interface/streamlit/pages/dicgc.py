@@ -7,6 +7,7 @@ from src.application.services.document import DocumentService
 from src.application.services.dicgc_service import DICGCService
 from src.infrastructure.persistence.database import get_db_session
 from src.interface.streamlit.components.primitives import render_action_bar
+from src.core.utils.number_utils import format_indian_number
 
 def render() -> None:
     render_action_bar("DICGC Half-Yearly Return Wizard", ["Form DI-01", "Premium Assessment", "Deposit Breakup"])
@@ -145,7 +146,7 @@ def render() -> None:
         assessable = data["total_deposits"] - exclusions + data["other_balances"]
         data["assessable_deposits"] = assessable
         
-        st.metric("Item 3 — Assessable Deposits (Calculated)", f"Rs. {assessable:,.0f} ('000)")
+        st.metric("Item 3 — Assessable Deposits (Calculated)", f"Rs. {format_indian_number(assessable, decimals=0)} ('000)")
         st.info("Formula: Item 1 − (1a+1b+1c+1d+1e) + Item 2")
 
     # STEP 5: Sundry & DDs (Item 4 & 5)
@@ -179,7 +180,7 @@ def render() -> None:
                      s["suit_filed"] + s["it_st_attach"] + s["tds"] + s["excess_cash"] + 
                      s["vigilance"] + s["others"])
         
-        st.metric("Total Format-I Summary", f"Rs. {s['total']:,.2f}")
+        st.metric("Total Format-I Summary", f"Rs. {format_indian_number(s['total'])}")
         st.warning("Note: Ensure 'Others' category does not include TDS or any other specific category.")
         
         # Validation with Item 4
@@ -188,7 +189,7 @@ def render() -> None:
         if abs(diff) < 1.0:
             st.success("Tally Match with Item 4 (Sundry Creditors)!")
         else:
-            st.error(f"Mismatch with Item 4: Rs. {diff:,.2f}")
+            st.error(f"Mismatch with Item 4: Rs. {format_indian_number(diff)}")
 
     # STEP 7: Other items (Items 6-12)
     elif st.session_state["dicgc_step"] == 7:
@@ -205,7 +206,7 @@ def render() -> None:
     # STEP 8: Breakup
     elif st.session_state["dicgc_step"] == 8:
         st.markdown("### 📈 Step 7: Item 13 — Break-up of Assessable Deposits")
-        st.info(f"Total assessable deposits to match: Rs. {data['assessable_deposits']:,.0f} ('000)")
+        st.info(f"Total assessable deposits to match: Rs. {format_indian_number(data['assessable_deposits'], decimals=0)} ('000)")
         
         b = data["breakup"]
         col1, col2 = st.columns(2)
@@ -228,9 +229,9 @@ def render() -> None:
         
         diff = breakup_total - data["assessable_deposits"]
         if abs(diff) < 0.01:
-            st.success(f"Tally Match! Total: Rs. {breakup_total:,.0f} ('000)")
+            st.success(f"Tally Match! Total: Rs. {format_indian_number(breakup_total, decimals=0)} ('000)")
         else:
-            st.error(f"Mismatch: Rs. {diff:,.0f} ('000). Total: Rs. {breakup_total:,.0f}")
+            st.error(f"Mismatch: Rs. {format_indian_number(diff, decimals=0)} ('000). Total: Rs. {format_indian_number(breakup_total, decimals=0)}")
 
     # STEP 9: Preview & Export
     elif st.session_state["dicgc_step"] == 9:

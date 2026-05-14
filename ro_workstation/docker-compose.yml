@@ -1,18 +1,20 @@
 services:
   app:
+    image: ro-workstation-app
     build: .
     ports:
       - "8501:8501"
     environment:
+      RO_ADMIN_PASSWORD: ${RO_ADMIN_PASSWORD:-admin}
+      RO_PUBLIC_URL: ${RO_PUBLIC_URL:-}
+      RO_OFFLINE_MODE: ${RO_OFFLINE_MODE:-true}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
-      OFFLINE_MODE: ${OFFLINE_MODE:-true}
       INTERNAL_SMTP_HOST: ${INTERNAL_SMTP_HOST:-mailserver.banklan}
       INTERNAL_SMTP_PORT: ${INTERNAL_SMTP_PORT:-25}
     volumes:
       - ./data:/app/data
-      - ./assets/models:/app/assets/models
-      - ./mis:/app/mis
+      - ./backups:/app/backups
     depends_on:
       - ollama
     restart: unless-stopped

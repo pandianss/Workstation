@@ -1,73 +1,55 @@
 # RO Workstation
 
-An offline-first regional office workstation for Indian Public Sector Bank operations, now refactored into layered architecture for maintainability and production readiness.
+RO Workstation is an offline-first regional office banking operations dashboard for MIS analytics, compliance returns, document generation, branch coordination, knowledge management, and administrative workflows.
 
-## Architecture
+Built for Indian Public Sector Bank regional office teams, it combines a Streamlit interface with layered Python services, local repositories, and production-friendly deployment paths for restricted or internal network environments.
 
-The project is now organized into clearly separated layers:
+## Documentation
 
-```text
-core/             config, security, logging, path utilities
-domain/           Pydantic schemas and domain enums
-application/      business services and use cases
-infrastructure/   repositories, loaders, LLM adapters
-interface/        Streamlit pages, components, theme, state
-app/              legacy compatibility shims and existing assets
-tests/            unit and integration tests
-```
+Detailed documentation is available in the `docs/` directory:
 
-## Key Improvements
+- **[Architecture](docs/architecture.md)**: Deep dive into the layered architecture and tech stack.
+- **[User Guide](docs/user_guide.md)**: Comprehensive manual for Regional Office staff.
+- **[Developer Guide](docs/developer_guide.md)**: Setup, standards, and how to extend the project.
+- **[Deployment Guide](docs/deployment.md)**: Docker and offline deployment procedures.
 
-- Centralized config loading with caching in `core/config/config_loader.py`
-- Role/session/auth handling in `core/security`
-- Repository pattern for JSON, Excel, and SQLite-backed workloads
-- Consolidated MIS ingestion and analytics in `application/use_cases/mis`
-- Consolidated knowledge indexing/search/QA in `application/use_cases/knowledge`
-- Routed Streamlit interface with reusable primitives and structured state
-- Added global search, activity timeline, notifications-friendly dashboard, and Excel export flows
-- Added lint/tooling config for `black`, `isort`, and `flake8`
+## Quick Start
 
-## Running Locally
+### Running Locally
 
 ```bash
 python -m streamlit run app.py
 ```
 
-## Docker
+### Running with Docker
 
 ```bash
 docker compose up --build
 ```
 
-The container includes a health check against Streamlit's internal health endpoint.
+## Core Workflows
 
-## Offline Preparation
-
-On an internet-connected machine:
-
-```bash
-pip download -r requirements.txt -d ./wheels/
-ollama pull mistral
-python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2').save('assets/models/all-MiniLM-L6-v2')"
-docker compose build
-docker save ro-workstation-app ollama/ollama | gzip > ro-workstation.tar.gz
-```
-
-On the internal network:
-
-```bash
-docker load < ro-workstation.tar.gz
-docker compose up -d
-```
+- **MIS Analytics**: Real-time KPIs and growth trends.
+- **Document Centre**: Generate Office Notes, letters, and DD approvals.
+- **Branch Coordination**: Track visits and campaign performance.
+- **Knowledge Archive**: Global search and AI-powered QA on policy documents.
+- **Compliance**: Manage DICGC and other statutory returns.
 
 ## Testing
 
-```bash
-python -m pytest
-```
-
-If `pytest` is not available in your environment, the tests can also be run with:
+The guaranteed test command uses Python's built-in `unittest` runner:
 
 ```bash
 python -m unittest discover -s tests
 ```
+
+With development dependencies installed:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+---
+
+*RO Workstation - Empowering Regional Operations with Data and Automation.*

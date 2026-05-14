@@ -8,6 +8,7 @@ from src.application.services.session_service import SessionService
 from src.core.config.config_loader import get_app_settings
 from src.core.security.auth import resolve_current_user
 from src.interface.streamlit.router import PAGE_REGISTRY, render_page
+from src.interface.streamlit.seo import inject_seo_metadata
 from src.interface.streamlit.state import ensure_app_state, ensure_filter_state, ensure_user_state
 from src.interface.streamlit.theme import apply_theme
 
@@ -210,6 +211,7 @@ def run() -> None:
     settings = get_app_settings()
     favicon_uri = f"data:image/svg+xml;base64,{FAVICON_B64}"
     st.set_page_config(page_title=settings.app_title, page_icon=favicon_uri, layout="wide")
+    inject_seo_metadata(settings)
     ensure_app_state()
     ensure_filter_state()
     apply_theme()

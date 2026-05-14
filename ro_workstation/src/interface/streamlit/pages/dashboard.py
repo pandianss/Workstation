@@ -39,9 +39,10 @@ def render() -> None:
     # 2. EXECUTIVE PULSE (KPIs)
     if snapshot:
         kpis = snapshot.kpis
+        from src.core.utils.number_utils import format_crore
         render_premium_metrics({
-            "Advances": f"₹{kpis['Total Advances']/100:,.1f} Cr",
-            "Deposits": f"₹{kpis['Total Deposits']/100:,.1f} Cr",
+            "Advances": format_crore(kpis['Total Advances']),
+            "Deposits": format_crore(kpis['Total Deposits']),
             "CD Ratio": f"{kpis['CD Ratio']:.1f}%",
             "NPA": f"{kpis['NPA']:.2f}%",
             "Open Tasks": tasks_summary["open"],

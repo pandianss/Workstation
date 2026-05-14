@@ -94,11 +94,14 @@ def render_circular_management_tab(circ_service, doc_service):
                     except: pass
                     
                     # Unified date formatting
+                    date_val = c.get('date', '')
                     try:
-                        p_date = datetime.datetime.fromisoformat(date_str) if 'T' in date_str else datetime.datetime.strptime(date_str, "%Y-%m-%d")
+                        p_date = datetime.datetime.fromisoformat(date_val) if 'T' in date_val else datetime.datetime.strptime(date_val, "%Y-%m-%d")
                         fmt_date = p_date.strftime("%d.%m.%Y")
-                    except: fmt_date = date_str
+                    except: fmt_date = date_val
 
+                    subject = c.get('subject', 'No Subject')
+                    ref = c.get('ref_no', 'No Ref')
                     st.markdown(f"### {'🆕 ' if is_new else ''}{subject}")
                     st.markdown(f"**Ref:** `{ref}` | **Date:** {fmt_date} | **Author:** {c.get('author', 'Regional Office')}")
                 

@@ -45,12 +45,21 @@ def render_action_bar(title: str, actions: list[str]) -> None:
     )
 
 
+from src.core.utils.number_utils import format_indian_number
+
 def render_data_table(frame: pd.DataFrame, title: str, export_name: str) -> None:
-    # Unified date formatting for all datetime columns
+    # Unified date and number formatting for all columns
     display_df = frame.copy()
     for col in display_df.columns:
+        # Format datetimes
         if pd.api.types.is_datetime64_any_dtype(display_df[col]):
             display_df[col] = display_df[col].dt.strftime('%d.%m.%Y')
+        # Format large numbers (likely currency or units)
+        elif pd.api.types.is_numeric_dtype(display_df[col]):
+            # Heuristic: Format if values are large or column name suggests currency
+            col_upper = str(col).upper()
+            if any(k in col_upper for k in ["AMOUNT", "BALANCE", "ADVANCE", "DEPOSIT", "VALUE", "BUDGET"]):
+                display_df[col] = display_df[col].apply(lambda x: format_indian_number(x) if pd.notnull(x) else x)
 
     st.markdown(
         f"""
@@ -61,10 +70,19 @@ def render_data_table(frame: pd.DataFrame, title: str, export_name: str) -> None
         """,
         unsafe_allow_html=True,
     )
-    st.dataframe(display_df, use_container_width=True, hide_index=True, height=420)
-    buffer = io.BytesIO()
-    display_df.to_excel(buffer, index=False)
-    st.download_button("Export to Excel", data=buffer.getvalue(), file_name=export_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    
+    # Optimized dataframe rendering with height and container width
+    st.dataframe(display_df, use_container_width=True, hide_index=True, height=min(420, (len(display_df) + 1) * 35 + 40))
+    
+    @st.cache_data(ttl=300) # Cache the excel generation for 5 minutes
+    def get_excel_bytes(df_dict: dict):
+        df = pd.DataFrame.from_dict(df_dict)
+        buffer = io.BytesIO()
+        df.to_excel(buffer, index=False)
+        return buffer.getvalue()
+        
+    excel_bytes = get_excel_bytes(display_df.to_dict('records'))
+    st.download_button("📥 Export to Excel", data=excel_bytes, file_name=export_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 def render_chart_container(frame: pd.DataFrame, x: str, y: str, title: str, kind: str = "line", color: str | None = None):
@@ -87,11 +105,17 @@ def render_chart_container(frame: pd.DataFrame, x: str, y: str, title: str, kind
 
 
 def render_premium_metrics(metrics: dict[str, Any]) -> None:
-    """Renders glassmorphic metric cards for a premium feel."""
+    """Renders glassmorphic metric cards for a premium feel with Indian formatting."""
     cols = st.columns(len(metrics))
     for i, (label, value) in enumerate(metrics.items()):
         with cols[i]:
-            display_val = f"{value:,.2f}" if isinstance(value, (int, float)) else str(value)
+            if isinstance(value, (int, float)):
+                # Heuristic: Use symbols for financial metrics
+                is_financial = any(k in label.upper() for k in ["ADVANCE", "DEPOSIT", "CASH", "LIMIT", "NPA", "₹"])
+                display_val = format_indian_number(value, include_symbol=is_financial)
+            else:
+                display_val = str(value)
+                
             st.markdown(f"""
                 <div class="glass-card">
                     <div class="metric-label">{label}</div>

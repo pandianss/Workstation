@@ -5,7 +5,9 @@ from importlib import import_module
 
 PAGE_REGISTRY = {
     "Dashboard": "src.interface.streamlit.pages.dashboard",
+    "Operations": "src.interface.streamlit.pages.operational_wizards",
     "Operations & Returns": "src.interface.streamlit.pages.operational_wizards",
+    "MIS": "src.interface.streamlit.pages.mis",
     "Document Center": "src.interface.streamlit.pages.document_centre",
     "Office Note Generator": "src.interface.streamlit.pages.execution",
     "Business Analytics": "src.interface.streamlit.pages.mis",
@@ -13,7 +15,9 @@ PAGE_REGISTRY = {
     "Coordination Center": "src.interface.streamlit.pages.coordination",
     "Campaign Management": "src.interface.streamlit.pages.campaigns",
     "DICGC Return": "src.interface.streamlit.pages.dicgc",
+    "Intelligence": "src.interface.streamlit.pages.knowledge",
     "Knowledge Base": "src.interface.streamlit.pages.knowledge",
+    "Guardian": "src.interface.streamlit.pages.guardian",
     "Branch Visits": "src.interface.streamlit.pages.visits",
     "Surveys & Feedback": "src.interface.streamlit.pages.surveys",
     "Admin": "src.interface.streamlit.pages.admin",

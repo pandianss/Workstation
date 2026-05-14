@@ -85,7 +85,8 @@ class MISAnalyticsService:
         """Main entry point for UI, handles ingestion before loading."""
         # Only check filesystem if explicitly requested or on first load of the session
         if force_ingest or st.session_state.get("mis_needs_ingest", True):
-            if any(self.mis_dir.glob("*.xlsx")):
+            mis_dir = getattr(self, "mis_dir", None)
+            if mis_dir is not None and any(mis_dir.glob("*.xlsx")):
                 self._ingest_new_files()
             st.session_state["mis_needs_ingest"] = False
         return self.load_frame()
@@ -131,6 +132,10 @@ class MISAnalyticsService:
         frame = self.get_data()
         if frame.empty:
             return None
+        frame = frame.copy()
+        frame.columns = [column.upper().replace("_", " ") for column in frame.columns]
+        if "DATE" in frame.columns:
+            frame["DATE"] = pd.to_datetime(frame["DATE"])
         dates = sorted(frame["DATE"].dropna().dt.date.unique())
         
         # Robust handling for None filters

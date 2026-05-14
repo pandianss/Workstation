@@ -102,16 +102,14 @@ def render_note_details(note, doc_service, note_service):
             st.markdown(f"**Department:** {note['dept']}")
             st.markdown("---")
             
+            from src.core.utils.number_utils import format_indian_number
             # Type-specific rendering
             if note['type'] == 'HIGH_VALUE_DD':
                 st.markdown("#### High Value DD Info")
                 st.write(f"**Applicant:** {content.get('applicantName', 'N/A')}")
                 st.write(f"**Account:** {content.get('applicantAccount', 'N/A')}")
                 amount = content.get('amount', '0')
-                try:
-                    amount_fmt = f"₹{float(amount):,.2f}"
-                except:
-                    amount_fmt = f"₹{amount}"
+                amount_fmt = format_indian_number(amount, include_symbol=True)
                 st.write(f"**Amount:** {amount_fmt}")
                 st.write(f"**Beneficiary:** {content.get('beneficiaryName', 'N/A')}")
                 st.write(f"**Purpose:** {content.get('purpose', 'N/A')}")
@@ -120,7 +118,8 @@ def render_note_details(note, doc_service, note_service):
             elif note['type'] == 'EXPENSE_APPROVAL':
                 st.markdown("#### Expense Details")
                 st.write(f"**Budget Head:** {content.get('budgetHead', 'N/A')}")
-                st.write(f"**Proposed Amount:** ₹{content.get('proposedAmount', 'N/A')}")
+                p_amt = format_indian_number(content.get('proposedAmount', '0'), include_symbol=True)
+                st.write(f"**Proposed Amount:** {p_amt}")
                 st.write(f"**Vendor:** {content.get('vendorName', 'N/A')}")
                 st.markdown("**Purpose:**")
                 st.write(content.get('expensePurpose', 'N/A'))
@@ -131,7 +130,8 @@ def render_note_details(note, doc_service, note_service):
                 st.markdown("#### Reversal Details")
                 st.write(f"**Account:** {content.get('revAccountNumber', 'N/A')}")
                 st.write(f"**Charge Type:** {content.get('revChargeType', 'N/A')}")
-                st.write(f"**Reversal Amount:** ₹{content.get('revReversalAmount', 'N/A')}")
+                r_amt = format_indian_number(content.get('revReversalAmount', '0'), include_symbol=True)
+                st.write(f"**Reversal Amount:** {r_amt}")
                 st.markdown("**Justification:**")
                 st.write(content.get('revJustification', 'N/A'))
             

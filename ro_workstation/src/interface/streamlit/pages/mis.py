@@ -15,6 +15,9 @@ from src.application.services.performance_letter_service import PerformanceLette
 from src.application.services.master_service import MasterService
 from src.application.services.graphic_service import GraphicService
 from src.core.paths import project_path
+from src.core.utils.number_utils import format_crore as format_cr
+from src.infrastructure.persistence.master_repository import MasterRepository
+from src.application.services.document import DocumentService
 
 def render() -> None:
     service = MISAnalyticsService()
@@ -91,7 +94,6 @@ def render() -> None:
     sols = sorted(df["SOL"].dropna().astype(int).unique().tolist())
     
     # SOL to Branch Name Mapping
-    from src.infrastructure.persistence.master_repository import MasterRepository
     repo = MasterRepository()
     units = repo.get_by_category("UNIT")
     unit_map = {int(u.code): f"{u.code} - {u.name_en}" for u in units if u.code.isdigit()}
@@ -128,9 +130,7 @@ def render() -> None:
         metric_to_track = st.selectbox("Select Parameter to Analyze", sorted(metric_options), index=sorted(metric_options).index("TOTAL ADVANCES") if "TOTAL ADVANCES" in metric_options else 0)
         perf = service.get_performance_metrics(selected_date, metric_to_track, sols=selected_sols)
         
-        def format_cr(val):
-            """Formats Lacs to Crores as per bank standards."""
-            return f"{val/100:,.2f} Cr"
+        # Advanced Performance Tracking
 
         if perf:
             st.markdown("### 🎯 Executive Budget Gap Summary")
@@ -255,12 +255,13 @@ def render() -> None:
         if not adv_df.empty:
             stats = adv_service.get_summary_stats(adv_df)
             
+            from src.core.utils.number_utils import format_indian_number
             # Metric Row (Glassmorphic)
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Accounts", f"{stats['total_count']:,}")
-            m2.metric("Portfolio", f"₹{stats['total_balance_cr']:.2f} Cr")
-            m3.metric("NPA", f"₹{stats.get('risk_summary', {}).get('NPA', {}).get('sum', 0):.2f} Cr")
-            m4.metric("SMA-2", f"₹{stats.get('risk_summary', {}).get('SMA-2', {}).get('sum', 0):.2f} Cr")
+            m2.metric("Portfolio", f"₹ {format_indian_number(stats['total_balance_cr'])} Cr")
+            m3.metric("NPA", f"₹ {format_indian_number(stats.get('risk_summary', {}).get('NPA', {}).get('sum', 0))} Cr")
+            m4.metric("SMA-2", f"₹ {format_indian_number(stats.get('risk_summary', {}).get('SMA-2', {}).get('sum', 0))} Cr")
 
             st.markdown("<br>", unsafe_allow_html=True)
             
@@ -268,9 +269,9 @@ def render() -> None:
             s_vals = stats.get('sanctions', {})
             st.markdown("#### 🚀 Sanction Momentum")
             s1, s2, s3 = st.columns(3)
-            s1.metric("Month", f"₹{s_vals.get('month', 0):.2f} Cr")
-            s2.metric("Quarter", f"₹{s_vals.get('quarter', 0):.2f} Cr")
-            s3.metric("FY Total", f"₹{s_vals.get('fy', 0):.2f} Cr")
+            s1.metric("Month", f"₹ {format_indian_number(s_vals.get('month', 0))} Cr")
+            s2.metric("Quarter", f"₹ {format_indian_number(s_vals.get('quarter', 0))} Cr")
+            s3.metric("FY Total", f"₹ {format_indian_number(s_vals.get('fy', 0))} Cr")
 
             # Granular Breakup
             with st.expander("📊 Detailed Sanction Breakup by Category & Scheme", expanded=True):
@@ -293,9 +294,9 @@ def render() -> None:
                     # Sort by Category then FY Total
                     b_df = b_df.sort_values(['Category', 'FY (Cr)'], ascending=[True, False])
                     st.table(b_df.style.format({
-                        'Mth (Cr)': '{:,.2f}',
-                        'Qtr (Cr)': '{:,.2f}',
-                        'FY (Cr)': '{:,.2f}',
+                        'Mth (Cr)': lambda x: format_indian_number(x),
+                        'Qtr (Cr)': lambda x: format_indian_number(x),
+                        'FY (Cr)': lambda x: format_indian_number(x),
                         'Mth Cnt': '{:,}',
                         'Qtr Cnt': '{:,}',
                         'FY Cnt': '{:,}'
@@ -363,7 +364,6 @@ def render() -> None:
         with col_title:
             st.subheader("🏆 Business Milestones Record")
         with col_pdf:
-            from src.application.services.document import DocumentService
             doc_service = DocumentService()
             
             # Prepare summary for PDF (Count by Parameter)

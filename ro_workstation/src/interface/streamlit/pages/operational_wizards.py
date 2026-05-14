@@ -4,8 +4,9 @@ import json
 import pandas as pd
 import streamlit as st
 from src.application.services.wizard_service import WizardService
+from src.core.utils.number_utils import format_indian_number
 from src.interface.streamlit.state.services import (
-    get_doc_service_v3, get_circular_service, get_master_service
+    get_doc_service_v3, get_circular_service, get_master_service, get_mm_service
 )
 from src.infrastructure.persistence.database import get_db_session
 from src.interface.streamlit.components.primitives import render_action_bar
@@ -181,7 +182,7 @@ def render_expense_approval_wizard() -> None:
         if st.button("💾 Save Expense Proposal", use_container_width=True):
             with get_db_session() as session:
                 svc = WizardService(session)
-                sub = svc.save_submission("expense_approval", st.session_state.get("username", "USER"), exp, subject=f"Expense: {exp['budget_head']} - ₹{exp['amount']}")
+                sub = svc.save_submission("expense_approval", st.session_state.get("username", "USER"), exp, subject=f"Expense: {exp['budget_head']} - {format_indian_number(exp['amount'], include_symbol=True)}")
                 st.success("Expense proposal saved to archive!")
 
     # Nav
@@ -329,7 +330,7 @@ def render_broken_interest_wizard() -> None:
             svc = WizardService(session)
             data["interest_amount"] = svc.calculate_broken_period_interest(data["principal"], data["effective_rate"], data["days"], data["frequency"])
             
-        st.success(f"Calculated Interest Amount: **₹ {data['interest_amount']:,.2f}**")
+        st.success(f"Calculated Interest Amount: **{format_indian_number(data['interest_amount'], include_symbol=True)}**")
 
     # Step 3: Justification & Save
     elif st.session_state["wiz_step"] == 3:
@@ -575,7 +576,7 @@ def render_high_value_dd_wizard() -> None:
         if st.button("🚀 Submit High Value DD Report", use_container_width=True):
             with get_db_session() as session:
                 svc = WizardService(session)
-                sub = svc.save_submission("high_value_dd", st.session_state.get("username", "USER"), dd, subject=f"DD: {dd['beneficiary']} - ₹{dd['amount']}")
+                sub = svc.save_submission("high_value_dd", st.session_state.get("username", "USER"), dd, subject=f"DD: {dd['beneficiary']} - {format_indian_number(dd['amount'], include_symbol=True)}")
                 st.success("High Value DD report saved to archive!")
 
     # Nav
@@ -742,7 +743,7 @@ def render_reversal_charges_wizard() -> None:
         if st.button("💾 Submit Reversal Request", use_container_width=True):
             with get_db_session() as session:
                 svc = WizardService(session)
-                sub = svc.save_submission("reversal_charges", st.session_state.get("username", "USER"), rev, subject=f"Reversal: {rev['account_no']} - ₹{rev['reversal_amount']}")
+                sub = svc.save_submission("reversal_charges", st.session_state.get("username", "USER"), rev, subject=f"Reversal: {rev['account_no']} - {format_indian_number(rev['reversal_amount'], include_symbol=True)}")
                 st.success("Reversal request saved to archive!")
 
     # Nav
@@ -759,7 +760,7 @@ def render_reversal_charges_wizard() -> None:
 
 def render_office_note_wizard() -> None:
     from src.interface.streamlit.pages.execution import render_office_note_tab
-    render_office_note_tab(DocumentService(), get_master_service)
+    render_office_note_tab(get_doc_service_v3(), get_master_service)
 def render_document_archive() -> None:
     st.markdown("### 🗄️ Unified Document Archive")
     st.caption("Centralized list of all generated documents, wizards, and returns.")
@@ -803,7 +804,7 @@ def render_document_archive() -> None:
                     c2_1, c2_2 = st.columns(2)
                     if c2_1.button("📄 PDF", key=f"gen_pdf_{row['ID']}"):
                         with st.spinner("Generating..."):
-                            doc_svc = DocumentService()
+                            doc_svc = get_doc_service_v3()
                             pdf = doc_svc.generate_wizard_pdf(
                                 wizard_type=row['Type'].lower().replace(' ', '_'),
                                 data=row['_raw'],
@@ -857,11 +858,11 @@ def render_high_value_dd_wizard() -> None:
 
 def render_circular_drafter_wizard() -> None:
     from src.interface.streamlit.pages.execution import render_circular_management_tab
-    render_circular_management_tab(CircularService(), DocumentService())
+    render_circular_management_tab(get_circular_service(), get_doc_service_v3())
 
 def render_anniversary_note_wizard() -> None:
     st.markdown("### 🎂 Branch Anniversary Note")
-    doc_service = DocumentService()
+    doc_service = get_doc_service_v3()
     with st.form("anniversary_note_form_wiz"):
         col1, col2 = st.columns(2)
         with col1:
@@ -878,4 +879,4 @@ def render_anniversary_note_wizard() -> None:
 
 def render_mail_merge_wizard() -> None:
     from src.interface.streamlit.pages.execution import render_mail_merge_tab
-    render_mail_merge_tab(MailMergeService())
+    render_mail_merge_tab(get_mm_service())

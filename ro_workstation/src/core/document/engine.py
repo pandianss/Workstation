@@ -33,18 +33,59 @@ class DocumentEngine:
         self.org_data = self._load_org_data()
 
     def _add_filters(self):
-        """Adds common Jinja2 filters for financial data."""
+        """Adds common Jinja2 filters for financial data with Indian formatting."""
+        # Manual implementation for robustness
+        
         def format_inr(value):
             try:
                 if value is None: return "0.00"
-                return "{:,.2f}".format(float(value))
-            except: return str(value)
+                # Use robust formatting logic
+                num = float(str(value).replace(',', '').replace('₹', '').replace(' ', '').strip() or 0)
+                is_neg = num < 0
+                num = abs(num)
+                
+                s = "{:.2f}".format(num)
+                parts = s.split(".")
+                int_part, dec_part = parts[0], parts[1]
+                
+                res = ""
+                if len(int_part) <= 3:
+                    res = int_part
+                else:
+                    res = int_part[-3:]
+                    rem = int_part[:-3]
+                    while len(rem) > 2:
+                        res = rem[-2:] + "," + res
+                        rem = rem[:-2]
+                    if rem: res = rem + "," + res
+                
+                final = res + "." + dec_part
+                return "-" + final if is_neg else final
+            except:
+                return str(value)
         
         def format_inr_k(value):
             try:
                 if value is None: return "0"
-                return "{:,.0f}".format(float(value))
-            except: return str(value)
+                num = float(str(value).replace(',', '').replace('₹', '').replace(' ', '').strip() or 0)
+                is_neg = num < 0
+                num = abs(num)
+                
+                int_part = str(int(num))
+                res = ""
+                if len(int_part) <= 3:
+                    res = int_part
+                else:
+                    res = int_part[-3:]
+                    rem = int_part[:-3]
+                    while len(rem) > 2:
+                        res = rem[-2:] + "," + res
+                        rem = rem[:-2]
+                    if rem: res = rem + "," + res
+                
+                return "-" + res if is_neg else res
+            except:
+                return str(value)
 
         def format_date(value, fmt="%d.%m.%Y"):
             if not value: return ""
