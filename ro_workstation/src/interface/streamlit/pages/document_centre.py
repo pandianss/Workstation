@@ -10,7 +10,6 @@ from src.application.services.document.milestones import MilestoneGenerator
 from src.application.services.document.statutory import StatutoryGenerator
 
 def render():
-    st.set_page_config(page_title="Document Command Centre", layout="wide")
     
     render_action_bar("Document Command Centre", ["Unified Engine", "Centralized Archive", "Audit Ready"])
     
@@ -54,14 +53,16 @@ def render_performance_section(gen, master_service):
         st.info("### 📬 Performance Letters")
         st.write("Generate mass appreciation and explanation letters based on monthly MIS performance.")
         if st.button("Open Performance Letter Generator", key="btn_perf", use_container_width=True):
-            st.switch_page("pages/letter_generator.py")
+            st.session_state["requested_page"] = "Letter Generator"
+            st.rerun()
             
     with col2:
         st.info("### 🎯 Budget Communication")
         st.write("Draft and distribute formal annual budget targets to all units in the region.")
         if st.button("Open Budget Communicator", key="btn_budget", use_container_width=True):
             # Redirecting to same page but could have specific logic here
-            st.switch_page("pages/letter_generator.py")
+            st.session_state["requested_page"] = "Letter Generator"
+            st.rerun()
 
 def render_operations_section(gen, master_service):
     st.subheader("Operations & Administrative Logic")
@@ -84,14 +85,16 @@ def render_operations_section(gen, master_service):
             st.markdown("#### 📜 Circulars")
             st.caption("Draft and publish regional circulars with auto-sequencing.")
             if st.button("Manage Circulars", use_container_width=True):
-                st.switch_page("pages/circulars.py")
+                st.session_state["requested_page"] = "Office Note Generator"
+                st.rerun()
                 
     with cols[2]:
         with st.container(border=True):
             st.markdown("#### 🚗 Visit Reports")
             st.caption("Generate formal observation letters and monthly visit returns.")
             if st.button("Visit Portal", use_container_width=True):
-                st.switch_page("pages/visits.py")
+                st.session_state["requested_page"] = "Branch Visits"
+                st.rerun()
 
 def render_statutory_section(gen, master_service):
     st.subheader("Statutory Returns & Compliance")
@@ -103,14 +106,16 @@ def render_statutory_section(gen, master_service):
             st.markdown("#### 🏦 DICGC Certification")
             st.caption("Generate Certificate of Confirmation and Form DI-01 for insurance compliance.")
             if st.button("DICGC Portal", use_container_width=True):
-                st.switch_page("pages/dicgc.py")
+                st.session_state["requested_page"] = "DICGC Return"
+                st.rerun()
                 
     with cols[1]:
         with st.container(border=True):
             st.markdown("#### 🧙 Operational Wizards")
             st.caption("Multi-step tools for RBI Proforma, Waiver Requests, and Expense Approvals.")
             if st.button("Open Wizards", use_container_width=True):
-                st.switch_page("pages/operational_wizards.py")
+                st.session_state["requested_page"] = "Operations"
+                st.rerun()
 
 def render_celebrations_section(gen, master_service):
     st.subheader("Celebrations & Recognition")
@@ -122,14 +127,16 @@ def render_celebrations_section(gen, master_service):
             st.markdown("#### 🎂 Staff Milestones")
             st.caption("Automated posters for Birthdays and Retirements.")
             if st.button("Anniversary Portal", use_container_width=True):
-                st.switch_page("pages/anniversary_portal.py")
+                st.session_state["requested_page"] = "Anniversary Portal"
+                st.rerun()
                 
     with cols[1]:
         with st.container(border=True):
             st.markdown("#### 🎖️ Ad-hoc Recognition")
             st.caption("Premium appreciation certificates and professional ad-hoc letters.")
             if st.button("Recognition Tools", use_container_width=True):
-                st.switch_page("pages/letter_generator.py")
+                st.session_state["requested_page"] = "Letter Generator"
+                st.rerun()
 
 if __name__ == "__main__":
     render()

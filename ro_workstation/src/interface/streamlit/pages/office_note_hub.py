@@ -11,7 +11,6 @@ from src.interface.streamlit.state.services import get_doc_service_v3
 from src.application.services.document.office_note_service import OfficeNoteService
 
 def render():
-    st.set_page_config(page_title="Office Note Hub", layout="wide")
     doc_service = get_doc_service_v3()
     note_service = OfficeNoteService()
     

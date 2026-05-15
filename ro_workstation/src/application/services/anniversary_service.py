@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime
+import math
 from typing import List, Dict, Any
 import streamlit as st
 from src.infrastructure.persistence.master_repository import MasterRepository
@@ -116,10 +117,20 @@ class AnniversaryService:
 
     def _parse_date(self, date_str: str) -> datetime.date | None:
         """Robust date parsing for various CSV formats."""
-        if not date_str or date_str == "nan": return None
+        if isinstance(date_str, datetime.datetime):
+            return date_str.date()
+        if isinstance(date_str, datetime.date):
+            return date_str
+        if date_str is None:
+            return None
+        if isinstance(date_str, float) and math.isnan(date_str):
+            return None
+        date_text = str(date_str).strip()
+        if not date_text or date_text.lower() in {"nan", "nat", "n/a", "none"}:
+            return None
         for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y"):
             try:
-                return datetime.datetime.strptime(date_str, fmt).date()
+                return datetime.datetime.strptime(date_text, fmt).date()
             except ValueError:
                 continue
         return None

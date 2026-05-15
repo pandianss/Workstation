@@ -55,21 +55,34 @@ class DocumentService(DocumentEngine):
         return self.to_pdf(html)
 
     def generate_anniversary_note(self, branch_name: str, branch_code: str, years: int, foundation_date: str | None = None, prepared_by: str | None = None) -> str:
-        return self.render_doc("anniversary_note.html", branch_name=branch_name, branch_code=branch_code, anniversary_year=years, foundation_date=foundation_date, prepared_by=prepared_by or "Regional Office", date=datetime.date.today().strftime("%d.%m.%Y"))
+        from .milestones import MilestoneGenerator
+        gen = MilestoneGenerator(self)
+        data = {
+            "branch_name": branch_name,
+            "branch_code": branch_code,
+            "anniversary_year": years,
+            "foundation_date": foundation_date,
+            "prepared_by": prepared_by or "Regional Office",
+            "date": datetime.date.today().strftime("%d.%m.%Y")
+        }
+        return gen.generate_anniversary_note_html(data)
 
     def generate_pdf_anniversary(self, *args, **kwargs) -> bytes:
         html = self.generate_anniversary_note(*args, **kwargs)
         return self.to_pdf(html)
 
-    def generate_anniversary_poster(self, branch_name: str, years: int, open_date: str) -> bytes:
+    def generate_anniversary_poster_html(self, branch_name: str, years: int, open_date: str) -> str:
         template = self.env.get_template("anniversary_poster.html")
-        html = template.render(
+        return template.render(
             logo_url=self.org_data.get("bankLogo", ""),
             branch_name=branch_name,
             years=years,
             open_date=open_date,
             region_name=self.org_data.get("region_name", "Regional Office")
         )
+
+    def generate_anniversary_poster_pdf(self, branch_name: str, years: int, open_date: str) -> bytes:
+        html = self.generate_anniversary_poster_html(branch_name, years, open_date)
         return self.to_pdf(html)
 
     def generate_staff_milestone_html(self, staff_roll: str, milestone_type: str) -> str:
@@ -85,7 +98,7 @@ class DocumentService(DocumentEngine):
             if unit: branch_name = unit.name_en
             
         profile = self.resolve_staff(staff_roll)
-        return gen.generate_staff_milestone(profile, milestone_type, branch_name)
+        return gen.generate_staff_milestone_html(profile, milestone_type, branch_name)
 
     def generate_high_value_dd_html(self, data: dict) -> str:
         from src.infrastructure.persistence.master_repository import MasterRepository
