@@ -33,12 +33,12 @@ class MilestoneGenerator:
         return self.generate_anniversary_note_pdf(data)
 
     def generate_staff_milestone_html(self, profile: Dict[str, Any], milestone_type: str, branch_name: str) -> str:
-        # Load Assets
+        # Load Premium Assets
         assets = {}
         asset_files = {
             "logo_url": "2026logo_min.svg",
-            "celebratory_bg": "birthday_bg.png",
-            "celebratory_icon": "birthday_icon.png"
+            "cake_url": "luxury_cake.png",
+            "bg_url": "premium_bg.png"
         }
         
         for key, filename in asset_files.items():
