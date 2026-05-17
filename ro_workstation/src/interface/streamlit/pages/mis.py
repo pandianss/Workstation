@@ -21,6 +21,13 @@ from src.application.services.document import DocumentService
 
 def render() -> None:
     service = MISAnalyticsService()
+    # Temporary cache clear to ensure the new caching and ADV logic is applied
+    if "global_cache_reset_v3" not in st.session_state:
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.session_state["global_cache_reset_v3"] = True
+        st.rerun()
+
     letter_service = PerformanceLetterService()
     # 1. Page Title
     render_action_bar("Regional MIS Analytics", ["Market Share", "Budget Tracking", "NPA Surveillance"])
@@ -31,57 +38,177 @@ def render() -> None:
             st.success(f"✅ **Update Successful!** Processed `{res['filename']}`. Data for **{res['dates']}** ({res['count']} units) has been updated in the regional database.")
         del st.session_state["mis_upload_results"]
     
-    # ─── DATA INGESTION HUB ──────────────────────────────────────────────
-    with st.expander("🛠️ Data Maintenance Hub", expanded=False):
-        st.caption("Upload source files to update regional database.")
+    # ─── REGIONAL DATA FEED (DAILY INGESTION) ──────────────────────────────
+    with st.expander("📡 Regional Data Feed", expanded=False):
+        st.markdown("#### 📥 Live Ingestion Portal")
+        st.caption("Upload daily MIS and Master feeds to keep the cockpit synchronized.")
         
+        # Ingestion Cards
         up_col1, up_col2 = st.columns(2)
+        
         with up_col1:
-            # MIS Data Ingestion
-            mis_file = st.file_uploader("📊 MIS Performance (.xlsx)", type=["xlsx"])
-            if mis_file:
-                mis_dir = project_path("data", "mis")
-                mis_dir.mkdir(parents=True, exist_ok=True)
-                with open(mis_dir / mis_file.name, "wb") as f:
-                    f.write(mis_file.getbuffer())
-                st.success(f"MIS File '{mis_file.name}' uploaded! Processing...")
-                results = service.sync_database() # Trigger DB sync
-                if results:
-                    st.session_state["mis_upload_results"] = results
-                else:
-                    st.warning("File uploaded but no new data found (it might already be in the database).")
-                st.rerun()
+            with st.container(border=True):
+                st.caption("Daily SOL-wise business figures (.xlsx)")
+                mis_files = st.file_uploader(
+                    "Upload MIS", 
+                    type=["xlsx"], 
+                    key=st.session_state.get("uploader_key", "daily_mis"), 
+                    label_visibility="collapsed", 
+                    accept_multiple_files=True
+                )
+                
+                if mis_files:
+                    if st.button("🚀 Start Ingestion", use_container_width=True, type="primary"):
+                        progress_bar = st.progress(0, text="Initializing ingestion...")
+                        mis_dir = project_path("data", "mis")
+                        mis_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Phase 1: Saving files to disk
+                        for i, mis_file in enumerate(mis_files):
+                            current_pct = (i + 1) / (len(mis_files) * 2)
+                            progress_bar.progress(
+                                current_pct, 
+                                text=f"📥 Saving files: {i+1} of {len(mis_files)} ({int(current_pct*100)}%)"
+                            )
+                            with open(mis_dir / mis_file.name, "wb") as f:
+                                f.write(mis_file.getbuffer())
+                        
+                        # Phase 2: Processing and Syncing to DB
+                        def update_progress(pct, msg):
+                            total_pct = 0.5 + (pct / 2)
+                            clean_msg = msg.replace("Processing ", "")
+                            progress_bar.progress(
+                                total_pct, 
+                                text=f"⚙️ Syncing Data: {clean_msg} ({int(total_pct*100)}%)"
+                            )
 
-            # Budget Data Ingestion
-            budget_file = st.file_uploader("🎯 Budget Targets (.csv)", type=["csv"])
-            if budget_file:
-                target_path = project_path("files", "Budget3.csv")
-                with open(target_path, "wb") as f:
-                    f.write(budget_file.getbuffer())
-                st.success("Budget3.csv updated! Syncing targets...")
-                letter_service.budget_repo.sync_if_needed()
-                st.rerun()
+                        results = service.sync_database(progress_callback=update_progress)
+                        
+                        if results:
+                            progress_bar.empty()
+                            st.success(f"✅ Successfully ingested {len(results)} records!")
+                            st.session_state["mis_needs_ingest"] = True
+                            # Force uploader reset by changing key
+                            st.session_state["uploader_key"] = datetime.datetime.now().timestamp()
+                            st.rerun()
 
         with up_col2:
-            # Staff Data Ingestion
-            staff_file = st.file_uploader("👥 Staff Registry (.csv)", type=["csv"])
-            if staff_file:
-                target_path = project_path("files", "Staff.csv")
-                with open(target_path, "wb") as f:
-                    f.write(staff_file.getbuffer())
-                MasterService().sync_staff_from_csv()
-                st.success("Staff Registry updated with history preservation!")
-                st.rerun()
+            with st.container(border=True):
+                st.markdown("##### 🎯 Target & Budget Feed")
+                st.caption("Update annual goals and SOL targets (.csv)")
+                budget_file = st.file_uploader("Upload Budget", type=["csv"], key="daily_budget", label_visibility="collapsed")
+                if budget_file:
+                    with st.spinner("Syncing targets..."):
+                        target_path = project_path("files", "Budget3.csv")
+                        with open(target_path, "wb") as f:
+                            f.write(budget_file.getbuffer())
+                        letter_service.budget_repo.sync_if_needed()
+                        st.success("Regional targets updated successfully!")
+                        st.rerun()
 
-            # Branch Data Ingestion
-            branch_file = st.file_uploader("🏢 Branch Master (.csv)", type=["csv"])
-            if branch_file:
-                target_path = project_path("files", "branches.csv")
-                with open(target_path, "wb") as f:
-                    f.write(branch_file.getbuffer())
-                MasterService().sync_units_from_csv()
-                st.success("Branch Master updated and database synchronized!")
-                st.rerun()
+        st.divider()
+        h_title_col, h_action_col = st.columns([3, 1])
+        with h_title_col:
+            st.markdown("##### 📜 Ingestion History")
+        
+        # Show last 10 archived MIS files for bulk management
+        mis_archive = project_path("data", "mis", "archive")
+        if mis_archive.exists():
+            history_files = sorted(list(mis_archive.glob("*.xlsx")), key=lambda x: x.stat().st_mtime, reverse=True)[:10]
+            if history_files:
+                to_delete = []
+                
+                with h_action_col:
+                    # Multi-action buttons
+                    if st.button("🗑️ Bulk Delete", use_container_width=True, type="secondary", help="Delete selected files"):
+                        st.session_state["show_bulk_confirm"] = True
+                
+                # Bulk Confirmation Dialog
+                if st.session_state.get("show_bulk_confirm"):
+                    with st.container(border=True):
+                        st.warning("⚠️ Are you sure you want to delete selected data feeds?")
+                        c1, c2 = st.columns(2)
+                        if c1.button("✅ Confirm Deletion", use_container_width=True):
+                            files_to_del = st.session_state.get("mis_selected_files", [])
+                            progress_bar = st.progress(0, text="Initializing batch removal...")
+                            deleted_count = 0
+                            
+                            for i, f_name in enumerate(files_to_del):
+                                pct = (i + 1) / len(files_to_del)
+                                progress_bar.progress(
+                                    pct,
+                                    text=f"🗑️ Deleting: {f_name} ({i+1}/{len(files_to_del)}) - {int(pct*100)}%"
+                                )
+                                if service.delete_mis_file(f_name):
+                                    deleted_count += 1
+                                    
+                            progress_bar.empty()
+                            st.success(f"Successfully removed {deleted_count} data feeds.")
+                            st.session_state["show_bulk_confirm"] = False
+                            st.session_state["mis_selected_files"] = []
+                            st.rerun()
+                        if c2.button("❌ Cancel", use_container_width=True):
+                            st.session_state["show_bulk_confirm"] = False
+                            st.rerun()
+
+                # History List with Checkboxes
+                selected_files = st.session_state.get("mis_selected_files", [])
+                
+                for f in history_files:
+                    h_time = datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime("%d-%b %H:%M")
+                    h_col1, h_col2 = st.columns([0.1, 4.9])
+                    with h_col1:
+                        is_selected = st.checkbox("", key=f"chk_{f.name}", value=f.name in selected_files, label_visibility="collapsed")
+                        if is_selected and f.name not in selected_files:
+                            selected_files.append(f.name)
+                        elif not is_selected and f.name in selected_files:
+                            selected_files.remove(f.name)
+                    with h_col2:
+                        st.caption(f"✅ **{f.name}** (Ingested: {h_time})")
+                
+                st.session_state["mis_selected_files"] = selected_files
+                
+                if st.button("🧨 Clear Entire Archive", type="secondary", use_container_width=True):
+                    all_files = list(mis_archive.glob("*.xlsx"))
+                    progress_bar = st.progress(0, text="🧨 Wiping entire archive...")
+                    for i, f in enumerate(all_files):
+                        pct = (i + 1) / len(all_files)
+                        progress_bar.progress(
+                            pct, 
+                            text=f"💥 Removing: {f.name} ({i+1}/{len(all_files)}) - {int(pct*100)}%"
+                        )
+                        service.delete_mis_file(f.name)
+                    progress_bar.empty()
+                    st.success("Entire archive cleared!")
+                    st.rerun()
+            else:
+                st.write("No ingestion history available.")
+        
+        with st.expander("🛠️ Advanced Maintenance"):
+            st.markdown("##### 🧨 Targeted Data Removal")
+            st.caption("Surgically remove all records and milestones for a specific reporting date.")
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                target_del_date = st.date_input("Date to Wipe", value=None, min_value=datetime.date(2024, 1, 1), key="wipe_date")
+            with c2:
+                st.write("") # Spacer
+                if st.button("🗑️ Wipe Date", use_container_width=True, type="secondary"):
+                    if target_del_date:
+                        with st.spinner(f"Wiping {target_del_date}..."):
+                            # Logic to delete by date directly
+                            with get_db_session() as session:
+                                from src.infrastructure.persistence.sqlite_models import MISRecordModel, MilestoneAchievementModel
+                                # Remove raw data
+                                r_cnt = session.query(MISRecordModel).filter(MISRecordModel.date == target_del_date).delete()
+                                # Remove milestones
+                                m_cnt = session.query(MilestoneAchievementModel).filter(MilestoneAchievementModel.date == target_del_date).delete()
+                                session.commit()
+                                st.success(f"Successfully wiped {r_cnt} records and {m_cnt} milestones for {target_del_date}.")
+                                service.load_frame.clear()
+                                service.build_snapshot.clear()
+                                st.rerun()
+                    else:
+                        st.error("Select a date.")
     
     # ─── BASE DATA LOAD ────────────────────────────────────────────────────
     df = service.get_data()
@@ -110,7 +237,8 @@ def render() -> None:
         )
 
     # 3. Dynamic Snapshot Generation
-    snapshot = service.build_snapshot(MISFilter(selected_date=selected_date, sols=selected_sols))
+    # Use dictionary for caching compatibility in build_snapshot
+    snapshot = service.build_snapshot({"selected_date": selected_date, "sols": selected_sols})
     if not snapshot:
         st.warning("No data found for this selection.")
         return
@@ -136,33 +264,46 @@ def render() -> None:
             st.markdown("### 🎯 Executive Budget Gap Summary")
             p_col1, p_col2, p_col3 = st.columns(3)
             with p_col1:
+                growth_color = "#10b981" if perf['fy_growth'] >= 0 else "#ef4444"
                 st.markdown(f"""
-                    <div class="glass-panel" style="border-top: 4px solid #10b981; background: #0f172a; border-radius: 12px; padding: 20px;">
+                    <div class="glass-panel" style="border-top: 4px solid {growth_color}; background: #0f172a; border-radius: 12px; padding: 20px;">
                         <div style="font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.1rem; font-weight: 700; text-transform: uppercase;">FY GROWTH</div>
                         <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 12px 0;">{format_cr(perf['fy_growth'])}</div>
-                        <div style="color: #10b981; font-weight: 700; font-size: 1rem;">↑ {perf['fy_growth_pct']:.2f}%</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: {growth_color}; font-weight: 700; font-size: 1rem;">{'↑' if perf['fy_growth'] >= 0 else '↓'} {abs(perf['fy_growth_pct']):.2f}%</span>
+                            <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;">Base: {format_cr(perf['fy_start_actual'])}</span>
+                        </div>
                     </div>
                 """, unsafe_allow_html=True)
             with p_col2:
                 gap = perf['gap_current_month']
+                gap_color = "#ef4444" if gap > 0 else "#10b981"
                 st.markdown(f"""
-                    <div class="glass-panel" style="border-top: 4px solid #ef4444; background: #0f172a; border-radius: 12px; padding: 20px;">
+                    <div class="glass-panel" style="border-top: 4px solid {gap_color}; background: #0f172a; border-radius: 12px; padding: 20px;">
                         <div style="font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.1rem; font-weight: 700; text-transform: uppercase;">MONTHLY GAP</div>
-                        <div style="font-size: 2.2rem; font-weight: 800; color: #ef4444; margin: 12px 0;">{format_cr(gap)}</div>
-                        <div style="font-size: 0.9rem; color: #f8fafc; font-weight: 600;">Target: {format_cr(perf['targets']['month'])}</div>
+                        <div style="font-size: 2.2rem; font-weight: 800; color: {gap_color}; margin: 12px 0;">{format_cr(abs(gap))}</div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
+                            <span style="color: #f8fafc;">Actual: {format_cr(perf['current_actual'])}</span>
+                            <span style="color: #94a3b8;">Target: {format_cr(perf['targets']['month'])}</span>
+                        </div>
                     </div>
                 """, unsafe_allow_html=True)
             with p_col3:
+                gap_fy = perf['gap_fy']
+                gap_fy_color = "#ef4444" if gap_fy > 0 else "#10b981"
                 st.markdown(f"""
-                    <div class="glass-panel" style="border-top: 4px solid #ffffff; background: #0f172a; border-radius: 12px; padding: 20px;">
+                    <div class="glass-panel" style="border-top: 4px solid {gap_fy_color}; background: #0f172a; border-radius: 12px; padding: 20px;">
                         <div style="font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.1rem; font-weight: 700; text-transform: uppercase;">ANNUAL GAP</div>
-                        <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 12px 0;">{format_cr(perf['gap_fy'])}</div>
-                        <div style="font-size: 0.9rem; color: #f8fafc; font-weight: 600;">Target: {format_cr(perf['targets']['fy'])}</div>
+                        <div style="font-size: 2.2rem; font-weight: 800; color: {gap_fy_color}; margin: 12px 0;">{format_cr(abs(gap_fy))}</div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
+                            <span style="color: #f8fafc;">Actual: {format_cr(perf['current_actual'])}</span>
+                            <span style="color: #94a3b8;">Target: {format_cr(perf['targets']['fy'])}</span>
+                        </div>
                     </div>
                 """, unsafe_allow_html=True)
 
     # Visualization Layer
-    tabs = st.tabs(["📊 Business Trends", "🏦 Advances Portfolio", "🏆 Milestones Record", "📬 Budget Communication"])
+    tabs = st.tabs(["📊 Business Trends", "🏦 Advances Portfolio", "🏆 Milestones Record", "🎯 Budget Matrix", "📬 Budget Communication"])
     
     with tabs[0]:
         col_chart, col_table = st.columns([1.5, 1])
@@ -171,8 +312,14 @@ def render() -> None:
         if not history.empty:
             history["DATE"] = pd.to_datetime(history["DATE"])
             fy_start = pd.to_datetime(get_fy_start(selected_date))
-            # Filter for current FY by default
-            history = history[history["DATE"] >= fy_start]
+            
+            # Locate the baseline date to ensure the starting figure is plotted
+            prev_fy_data = history[history["DATE"] < fy_start]
+            if not prev_fy_data.empty:
+                baseline_date = prev_fy_data["DATE"].max()
+                history = history[history["DATE"] >= baseline_date]
+            else:
+                history = history[history["DATE"] >= fy_start]
 
         with col_chart:
             if not history.empty:
@@ -412,9 +559,17 @@ def render() -> None:
             with st.container(border=True):
                 col_bt, col_btn = st.columns([3, 1.5])
                 with col_bt:
-                    st.markdown("#### 🌟 Monthly Breakthroughs")
-                    st.caption("Branches that crossed a NEW 50Cr-increment threshold since last month end.")
+                    # Determine the month for the title
+                    target_month_name = snapshot.selected_date.strftime("%B %Y")
+                    st.markdown(f"#### 🌟 Monthly Breakthroughs ({target_month_name})")
+                    st.caption(f"Branches that crossed a NEW 50Cr-increment threshold during {target_month_name}.")
                 with col_btn:
+                    # Resolve Signatory
+                    exec_list = MasterService().get_ro_executives()
+                    exec_options = {e["roll"]: e["name"] for e in exec_list}
+                    selected_sig_roll_ms = st.selectbox("Signing Authority", options=list(exec_options.keys()), format_func=lambda x: exec_options[x], key="ms_sig")
+                    selected_signatory = next((e for e in exec_list if e["roll"] == selected_sig_roll_ms), None)
+
                     if st.button("✅ Finalize & Generate Letters", use_container_width=True):
                         with st.spinner("Saving breakthroughs and preparing letters..."):
                             with get_db_session() as session:
@@ -430,7 +585,7 @@ def render() -> None:
                             with zipfile.ZipFile(zip_buffer, "w") as zf:
                                 for i, b in enumerate(snapshot.milestone_breakthroughs):
                                     # PDF Letter
-                                    pdf = doc_service.generate_performance_appreciation(b)
+                                    pdf = doc_service.generate_milestone_appreciation(b, selected_signatory)
                                     pdf_name = f"Appreciation_{b['branch_name'].replace(' ', '_')}_{b['parameter']}.pdf"
                                     zf.writestr(f"Letters/{pdf_name}", pdf)
                                     
@@ -489,6 +644,31 @@ def render() -> None:
             st.dataframe(summary_df.sort_values("Total Milestones", ascending=False), hide_index=True, use_container_width=True)
 
     with tabs[3]:
+        st.subheader("🎯 Monthly Budget Matrix")
+        st.caption("Cumulative monthly targets distributed across the selected branches.")
+        
+        current_fy_start = get_fy_start(selected_date)
+        
+        budget_df = letter_service.budget_repo.get_monthly_targets(sols=selected_sols if selected_sols else sols, fy_start=current_fy_start)
+        
+        if not budget_df.empty:
+            formatted_df = budget_df.copy()
+            for col in formatted_df.columns:
+                formatted_df[col] = formatted_df[col].apply(lambda x: format_cr(x) if pd.notnull(x) else "-")
+            st.dataframe(formatted_df, use_container_width=True)
+            
+            csv = budget_df.to_csv().encode('utf-8')
+            st.download_button(
+                label="📥 Download Budget Matrix",
+                data=csv,
+                file_name=f"Budget_Matrix_{current_fy_start.year}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.info("No budget data found for the selected branches in the current financial year.")
+
+    with tabs[4]:
         letter_service = PerformanceLetterService()
         
         st.subheader("📬 Regional Communication Center")
@@ -598,26 +778,84 @@ def render() -> None:
             selected_sig_roll_perf = st.selectbox("Signing Authority (Performance)", options=list(exec_options.keys()), format_func=lambda x: exec_options[x], key="perf_sig")
             selected_signatory = next((e for e in exec_list if e["roll"] == selected_sig_roll_perf), None)
 
-            if st.button("📦 Generate All Performance Letters (ZIP)", use_container_width=True):
-                if not selected_signatory: st.error("Please select a signatory.")
-                else:
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
+            # --- INTERRUPTIBLE GENERATION LOGIC (V2: STATE-PERSISTENT) ---
+            if "zip_gen_state" not in st.session_state:
+                st.session_state.zip_gen_state = {"active": False, "stopped": False, "data": None, "current_idx": 0}
+            if "zip_gen_accumulator" not in st.session_state:
+                st.session_state.zip_gen_accumulator = [] # List of (filename, bytes)
+
+            gen_col, stop_col = st.columns([3, 1])
+            
+            with gen_col:
+                if not st.session_state.zip_gen_state["active"] and not st.session_state.zip_gen_accumulator:
+                    if st.button("📦 Generate All Performance Letters (ZIP)", use_container_width=True):
+                        if not selected_signatory:
+                            st.error("Please select a signatory.")
+                        else:
+                            st.session_state.zip_gen_state = {"active": True, "stopped": False, "data": None, "current_idx": 0}
+                            st.session_state.zip_gen_accumulator = []
+                            st.rerun()
+                elif not st.session_state.zip_gen_state["active"] and st.session_state.zip_gen_accumulator:
+                    # Partial data exists, show download or reset
+                    import io, zipfile
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w") as zf:
+                        for fname, fdata in st.session_state.zip_gen_accumulator:
+                            zf.writestr(fname, fdata)
                     
-                    def update_progress_perf(pct, msg):
-                        progress_bar.progress(pct)
-                        status_text.text(msg)
+                    st.session_state.zip_gen_state["data"] = zip_buffer.getvalue()
                     
-                    zip_data = letter_service.generate_letters_zip(
-                        performance_data, 
-                        signatory=selected_signatory,
-                        progress_callback=update_progress_perf
+                    st.download_button(
+                        f"📥 Download Partial Kit ({len(st.session_state.zip_gen_accumulator)} letters)", 
+                        data=st.session_state.zip_gen_state["data"], 
+                        file_name=f"Performance_Letters_PARTIAL_{snapshot.selected_date}.zip", 
+                        mime="application/zip", 
+                        use_container_width=True
                     )
+                    if st.button("🔄 Start New Generation", use_container_width=True):
+                        st.session_state.zip_gen_accumulator = []
+                        st.session_state.zip_gen_state = {"active": False, "stopped": False, "data": None, "current_idx": 0}
+                        st.rerun()
+
+            with stop_col:
+                if st.session_state.zip_gen_state["active"]:
+                    if st.button("🛑 STOP", type="primary", use_container_width=True):
+                        st.session_state.zip_gen_state["active"] = False
+                        st.session_state.zip_gen_state["stopped"] = True
+                        st.rerun()
+
+            if st.session_state.zip_gen_state["active"]:
+                status_placeholder = st.empty()
+                progress_bar = st.progress(0)
+                
+                total = len(performance_data)
+                # Resume from current_idx
+                for i in range(st.session_state.zip_gen_state["current_idx"], total):
+                    st.session_state.zip_gen_state["current_idx"] = i
+                    branch = performance_data[i]
+                    pct = (i + 1) / total
+                    status_placeholder.markdown(f"**⚡ Processing Branch {i+1}/{total}:** `{branch['branch_name']}`")
+                    progress_bar.progress(pct)
                     
-                    progress_bar.empty()
-                    status_text.empty()
-                    st.success(f"Generated performance letters for {len(performance_data)} branches!")
-                    st.download_button("📥 Download Performance Kit", data=zip_data, file_name=f"Performance_Letters_{snapshot.selected_date}.zip", mime="application/zip", use_container_width=True)
+                    # Generate letters for this branch
+                    for group_name, data in branch["groups"].items():
+                        if data["achievements"]:
+                            payload = {**branch, "group_name": group_name, "achievements": data["achievements"], "signatory": selected_signatory}
+                            pdf = letter_service.doc_service.generate_performance_appreciation(payload)
+                            folder = f"Appreciation_Letters/{group_name.replace(' ', '_')}"
+                            fname = f"{folder}/Appr_{branch['sol']}_{group_name.replace(' ', '_')}.pdf"
+                            st.session_state.zip_gen_accumulator.append((fname, pdf))
+
+                        if data["declines"]:
+                            payload = {**branch, "group_name": group_name, "declines": data["declines"], "signatory": selected_signatory}
+                            pdf = letter_service.doc_service.generate_explanation_letter(payload)
+                            folder = f"Explanation_Letters/{group_name.replace(' ', '_')}"
+                            fname = f"{folder}/Expl_{branch['sol']}_{group_name.replace(' ', '_')}.pdf"
+                            st.session_state.zip_gen_accumulator.append((fname, pdf))
+                
+                # Finished normally
+                st.session_state.zip_gen_state["active"] = False
+                st.rerun()
         else:
             st.info("No performance data available.")
 

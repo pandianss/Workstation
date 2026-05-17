@@ -9,7 +9,7 @@ import streamlit as st
 
 from src.core.config.config_loader import get_app_settings
 from src.core.paths import project_path
-from src.core.utils.financial_year import get_fy_start, get_quarter_start, get_next_month_end
+from src.core.utils.financial_year import get_fy_start, get_quarter_start, get_next_month_end, get_fy_end
 from src.domain.schemas.mis import MISFilter, MISSnapshot
 from src.infrastructure.persistence.excel_repo import ExcelRepository
 from src.infrastructure.persistence.mis_repository import MISRepository
@@ -29,16 +29,22 @@ class MISAnalyticsService:
         from src.core.registry.parameter_service import ParameterRegistry
         self.registry = ParameterRegistry()
 
-    def sync_database(self) -> list[dict]:
+    def sync_database(self, progress_callback: callable | None = None) -> list[dict]:
         """Explicitly triggers synchronization of database with any new MIS Excel files."""
-        return self._ingest_new_files()
+        return self._ingest_new_files(progress_callback)
 
-    def _ingest_new_files(self) -> list[dict]:
+    def _ingest_new_files(self, progress_callback: callable | None = None) -> list[dict]:
         self.mis_dir.mkdir(parents=True, exist_ok=True)
         self.archive_dir.mkdir(parents=True, exist_ok=True)
         summaries = []
         
-        for file_path in self.mis_dir.glob("*.xlsx"):
+        files = list(self.mis_dir.glob("*.xlsx"))
+        total_files = len(files)
+        
+        for i, file_path in enumerate(files):
+            if progress_callback:
+                progress_callback((i + 1) / total_files, f"Processing {file_path.name} ({i+1}/{total_files})")
+                
             # Process everything in mis_dir; files are moved to archive/ after success
             frame = self.excel_repo.read(file_path)
             if frame.empty:
@@ -69,11 +75,50 @@ class MISAnalyticsService:
         self.load_frame.clear()
         return summaries
 
+    def delete_mis_file(self, filename: str) -> bool:
+        """Permanently deletes an archived MIS file and its database records."""
+        file_path = self.archive_dir / filename
+        
+        # 1. Identify dates in the file to clean up DB records
+        dates_to_clean = []
+        if file_path.exists():
+            try:
+                frame = self.excel_repo.read(file_path)
+                if not frame.empty and "DATE" in frame.columns:
+                    # Normalize dates
+                    frame["DATE"] = pd.to_datetime(
+                        frame["DATE"].astype(str).str.split(".").str[0],
+                        format="%Y%m%d",
+                        errors="coerce",
+                    )
+                    dates_to_clean = frame["DATE"].dropna().dt.date.unique().tolist()
+            except Exception as e:
+                st.error(f"Error reading file before deletion: {e}")
+
+        # 2. Delete DB records for those dates
+        if dates_to_clean:
+            with get_db_session() as session:
+                from src.infrastructure.persistence.sqlite_models import MISRecordModel, MilestoneAchievementModel
+                # Remove raw data
+                session.query(MISRecordModel).filter(MISRecordModel.date.in_(dates_to_clean)).delete(synchronize_session=False)
+                # Remove associated breakthroughs to prevent ghost milestones from deleted dates
+                session.query(MilestoneAchievementModel).filter(MilestoneAchievementModel.date.in_(dates_to_clean)).delete(synchronize_session=False)
+                session.commit()
+
+        # 3. Delete physical file
+        if file_path.exists():
+            file_path.unlink()
+        
+        # 4. Remove from DB tracking (IngestedFileModel)
+        success = self.repository.delete_ingested_file(filename)
+        
+        # Clear cache to reflect changes
+        self.load_frame.clear()
+        return success
+
     @st.cache_data(show_spinner=True)
     def load_frame(_self) -> pd.DataFrame:
         """Cached data loading and enrichment."""
-        # Note: In production, you'd call self._ingest_new_files() elsewhere (e.g. background task)
-        # to keep the UI fast. For now, we'll keep it but ensure load_frame is cached properly.
         frame = _self.repository.load_frame()
         if frame.empty:
             return frame
@@ -83,26 +128,28 @@ class MISAnalyticsService:
 
     def get_data(self, force_ingest: bool = False) -> pd.DataFrame:
         """Main entry point for UI, handles ingestion before loading."""
-        # Only check filesystem if explicitly requested or on first load of the session
         if force_ingest or st.session_state.get("mis_needs_ingest", True):
             mis_dir = getattr(self, "mis_dir", None)
             if mis_dir is not None and any(mis_dir.glob("*.xlsx")):
                 self._ingest_new_files()
             st.session_state["mis_needs_ingest"] = False
-        return self.load_frame()
+            
+        frame = self.load_frame()
+        if not frame.empty:
+            # Exclude Regional Office SOL (3933) as it usually contains aggregate figures 
+            # and would cause double-counting in regional sums/charts.
+            frame = frame[frame["SOL"] != 3933]
+        return frame
 
     def _enrich_metrics(self, frame: pd.DataFrame) -> pd.DataFrame:
         def safe_sum(df, columns):
             existing = [column for column in columns if column in df.columns]
             return df[existing].fillna(0).sum(axis=1) if existing else 0
 
-        # Enrichment logic: Only calculate if column is missing OR entirely empty
         def enrich_category(df, parent_id):
             p_config = self.registry.get_by_id(parent_id)
             if not p_config: return df
             col = p_config["mis_col"]
-            
-            # If column doesn't exist or is all NaNs/Zeros, we calculate from subsets
             if col not in df.columns or df[col].fillna(0).sum() == 0:
                 subsets = self.registry.get_subset_map(parent_id)
                 df[col] = safe_sum(df, subsets)
@@ -111,12 +158,14 @@ class MISAnalyticsService:
         for cat_id in ["core_retail", "casa", "core_agri", "msme", "gold"]:
             frame = enrich_category(frame, cat_id)
         
-        # Aggregate totals from parent groups
-        frame["TOTAL ADVANCES"] = safe_sum(frame, ["CORE AGRI", "GOLD", "MSME", "CORE RETAIL"])
-        
-        td = frame["TD"].fillna(0) if "TD" in frame.columns else 0
-        bulk = frame["BULK DEP"].fillna(0) if "BULK DEP" in frame.columns else 0
-        frame["RET TD"] = td - bulk
+        # Use the official 'ADV' column from the ingested file as the ONLY source for 'TOTAL ADVANCES'
+        # This ensures 100% parity with official reports and avoids incorrect manual summations.
+        if "ADV" in frame.columns:
+            frame["TOTAL ADVANCES"] = frame["ADV"]
+        else:
+            # If ADV is missing, we initialize it to 0 to prevent downstream errors
+            frame["TOTAL ADVANCES"] = 0.0
+
         frame["TOTAL DEPOSITS"] = safe_sum(frame, ["SB", "CD", "TD"])
         
         frame["CD RATIO"] = np.where(frame["TOTAL DEPOSITS"] > 0, frame["TOTAL ADVANCES"] / frame["TOTAL DEPOSITS"] * 100, 0).round(2)
@@ -128,8 +177,10 @@ class MISAnalyticsService:
         frame["NPA %"] = np.where(frame["TOTAL ADVANCES"] > 0, npa / frame["TOTAL ADVANCES"] * 100, 0).round(2)
         return frame
 
-    def build_snapshot(self, filters: MISFilter | None) -> MISSnapshot | None:
-        frame = self.get_data()
+    @st.cache_resource(show_spinner=False, ttl=3600)
+    def build_snapshot(_self, filters_dict: dict | None) -> MISSnapshot | None:
+        """Cached snapshot builder. Accepts dict instead of MISFilter for easier caching."""
+        frame = _self.get_data()
         if frame.empty:
             return None
         frame = frame.copy()
@@ -138,9 +189,8 @@ class MISAnalyticsService:
             frame["DATE"] = pd.to_datetime(frame["DATE"])
         dates = sorted(frame["DATE"].dropna().dt.date.unique())
         
-        # Robust handling for None filters
-        selected_date = filters.selected_date if filters and filters.selected_date else dates[-1]
-        sols = filters.sols if filters else None
+        selected_date = (filters_dict.get("selected_date") if filters_dict else None) or dates[-1]
+        sols = filters_dict.get("sols") if filters_dict else None
         
         selected = frame[frame["DATE"].dt.date == selected_date].copy()
         history = frame.copy()
@@ -148,11 +198,9 @@ class MISAnalyticsService:
         if sols:
             selected = selected[selected["SOL"].isin(sols)]
             history = history[history["SOL"].isin(sols)]
-        elif self.settings.region_code.isdigit():
-            aggregate_sol = int(self.settings.region_code)
-            regional = selected[selected["SOL"] == aggregate_sol]
-            selected = regional if not regional.empty else selected
-            history = history[history["SOL"] == aggregate_sol] if not history[history["SOL"] == aggregate_sol].empty else history
+        # No special handling for aggregate_sol needed here, as get_data() already filters out 
+        # the RO SOL to prevent double-counting. We always work with the sum of branches.
+        pass
 
         kpis = {
             "Total Advances": float(selected["TOTAL ADVANCES"].sum()) if "TOTAL ADVANCES" in selected.columns else 0.0,
@@ -161,13 +209,13 @@ class MISAnalyticsService:
             "CD Ratio": float(selected["CD RATIO"].mean()) if "CD RATIO" in selected.columns else 0.0,
         }
         
-        # Milestone Record
         milestones = None
         milestone_breakthroughs = None
         with get_db_session() as session:
             ms = MilestoneService(session)
             milestones = ms.get_all_at_milestones()
-            milestone_breakthroughs = ms.get_milestone_achievements()
+            # Calculate breakthroughs for the month of the selected reporting date
+            milestone_breakthroughs = ms.get_milestone_achievements(target_date=selected_date)
 
         sols = sorted(frame["SOL"].dropna().astype(int).unique().tolist())
         return MISSnapshot(
@@ -181,56 +229,53 @@ class MISAnalyticsService:
             milestone_breakthroughs=milestone_breakthroughs
         )
 
-    def get_performance_metrics(self, selected_date: datetime.date, metric_name: str = "TOTAL ADVANCES", sols: list[int] | None = None) -> dict:
-        frame = self.get_data()
+    @st.cache_data(show_spinner=False)
+    def get_performance_metrics(_self, selected_date: datetime.date, metric_name: str = "TOTAL ADVANCES", sols: list[int] | None = None) -> dict:
+        frame = _self.get_data()
         if frame.empty:
             return {}
 
-        # Handle casing
         metric_name = metric_name.upper()
-
-        # Filter frame by SOLs if provided, else by region aggregate if available
         filtered_history = frame.copy()
         if sols:
             filtered_history = filtered_history[filtered_history["SOL"].isin(sols)]
-        elif self.settings.region_code.isdigit():
-            reg_sol = int(self.settings.region_code)
-            # Try to filter by regional aggregate SOL first
-            regional_data = filtered_history[filtered_history["SOL"] == reg_sol]
-            if not regional_data.empty:
-                filtered_history = regional_data
+        # Special regional logic removed; get_data() already handles RO SOL filtering.
+        pass
 
-        # 1. FY Growth (from April 1st)
         fy_start = get_fy_start(selected_date)
-        
-        # Get actuals for selected date
+        prev_fy_end = fy_start - datetime.timedelta(days=1)
         current_data = filtered_history[filtered_history["DATE"].dt.date == selected_date]
         current_val = current_data[metric_name].sum() if not current_data.empty and metric_name in current_data.columns else 0.0
 
-        # Get actuals for FY Start (using same SOL filter)
-        fy_start_data = filtered_history[filtered_history["DATE"].dt.date == fy_start]
-        if fy_start_data.empty:
-            # Fallback: find the earliest record in this FY
-            fy_start_data = filtered_history[filtered_history["DATE"].dt.date >= fy_start].sort_values("DATE").head(1)
+        # FY Growth Baseline should be the closest date <= prev_fy_end (typically March 31st)
+        prev_dates = filtered_history[filtered_history["DATE"].dt.date <= prev_fy_end]["DATE"].unique()
+        if len(prev_dates) > 0:
+            baseline_date = sorted(prev_dates, reverse=True)[0]
+            fy_start_data = filtered_history[filtered_history["DATE"] == baseline_date]
+        else:
+            # If no previous FY data exists, fallback to the earliest available date overall
+            earliest_dates = filtered_history["DATE"].unique()
+            if len(earliest_dates) > 0:
+                earliest_date = sorted(earliest_dates)[0]
+                fy_start_data = filtered_history[filtered_history["DATE"] == earliest_date]
+            else:
+                fy_start_data = pd.DataFrame()
         
         fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty and metric_name in fy_start_data.columns else 0.0
-        
-        # If still zero, try any earliest record ever as last resort to avoid 10000% growth
-        if fy_start_val == 0:
-            fy_start_data = filtered_history.sort_values("DATE").head(1)
-            fy_start_val = fy_start_data[metric_name].sum() if not fy_start_data.empty and metric_name in fy_start_data.columns else 0.0
 
         fy_growth = current_val - fy_start_val
         fy_growth_pct = (fy_growth / fy_start_val * 100) if fy_start_val > 0 else 0.0
 
-        # 2. Gaps to Budget
         curr_month_str = selected_date.strftime("%Y-%m")
         next_month_date = get_next_month_end(selected_date)
         next_month_str = next_month_date.strftime("%Y-%m")
 
-        target_curr_month = self.budget_repo.get_target(metric_name, curr_month_str, sols=sols)
-        target_next_month = self.budget_repo.get_target(metric_name, next_month_str, sols=sols)
-        target_fy = self.budget_repo.get_target(metric_name, sols=sols)
+        target_curr_month = _self.budget_repo.get_target(metric_name, curr_month_str, sols=sols)
+        target_next_month = _self.budget_repo.get_target(metric_name, next_month_str, sols=sols)
+        
+        fy_end = get_fy_end(selected_date)
+        fy_end_str = fy_end.strftime("%Y-%m")
+        target_fy = _self.budget_repo.get_target(metric_name, fy_end_str, sols=sols)
 
         return {
             "current_actual": current_val,

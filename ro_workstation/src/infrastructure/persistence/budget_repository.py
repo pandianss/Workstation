@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from typing import List
 import datetime
+import calendar
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 
@@ -62,8 +63,9 @@ class BudgetRepository:
             # Cleanup column names (remove leading/trailing spaces)
             df.columns = [c.strip() for c in df.columns]
             
-            # Period is Mar-26, Apr-26 etc. Set to end of month
-            df["DATE"] = pd.to_datetime(df["Period"], format="%b-%y") + pd.offsets.MonthEnd(0)
+            # Period is Mar-26, Apr-26 etc. Force to end of month explicitly
+            df["DATE"] = pd.to_datetime(df["Period"], format="%b-%y")
+            df["DATE"] = df["DATE"].apply(lambda x: x.replace(day=pd.Period(x, freq='M').days_in_month))
             
             session = self.session_factory()
             try:
@@ -100,14 +102,17 @@ class BudgetRepository:
             print(f"Sync error: {e}")
 
     def get_monthly_targets(self, sols: List[int], fy_start: datetime.date) -> pd.DataFrame:
-        """Returns a pivot table of monthly targets for the FY."""
+        """Returns a pivot table of monthly targets for the FY, including the baseline."""
         fy_end = fy_start.replace(year=fy_start.year + 1)
+        
+        # Explicitly use the end of the previous FY (March 31st)
+        prev_fy_end = fy_start - datetime.timedelta(days=1)
         
         session = self.session_factory()
         try:
             query = session.query(BudgetModel).filter(
                 BudgetModel.sol.in_(sols),
-                BudgetModel.date >= fy_start,
+                BudgetModel.date >= prev_fy_end,
                 BudgetModel.date < fy_end
             )
             df = pd.read_sql(query.statement, self.engine)
@@ -118,11 +123,14 @@ class BudgetRepository:
             df["Month"] = pd.to_datetime(df["date"]).dt.strftime("%b-%y")
             # Keep months in chronological order
             month_order = []
-            curr = fy_start
+            curr = prev_fy_end
             while curr < fy_end:
                 month_order.append(curr.strftime("%b-%y"))
-                if curr.month == 12: curr = curr.replace(year=curr.year+1, month=1)
-                else: curr = curr.replace(month=curr.month+1)
+                # Safely advance exactly to the last day of the next month
+                next_month = 1 if curr.month == 12 else curr.month + 1
+                next_year = curr.year + 1 if curr.month == 12 else curr.year
+                _, last_day = calendar.monthrange(next_year, next_month)
+                curr = datetime.date(next_year, next_month, last_day)
 
             pivot = df.pivot_table(
                 index="parameter", 
