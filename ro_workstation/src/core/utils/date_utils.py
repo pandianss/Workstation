@@ -19,7 +19,7 @@ def clean_date(val: any) -> str:
             # The original MasterService used YYYY-MM-DD for some parts but returned DD.MM.YYYY for others.
             # Let's stick to DD.MM.YYYY for display/storage consistency in Master records.
             return f"{d.zfill(2)}.{m.zfill(2)}.{y}"
-        except:
+        except Exception:
             pass
             
     # Remove time part if present (e.g. 2023-01-01 00:00:00)

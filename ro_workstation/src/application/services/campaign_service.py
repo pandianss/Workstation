@@ -17,7 +17,7 @@ class CampaignService:
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             return data.get("campaigns", [])
-        except:
+        except Exception:
             return []
 
     def save_all(self, campaigns: List[Dict[str, Any]]):

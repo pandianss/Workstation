@@ -178,7 +178,7 @@ def render() -> None:
                         c_date = datetime.datetime.strptime(c.get('date'), "%Y-%m-%d").date()
                         if (datetime.date.today() - c_date).days <= 3:
                             is_new = True
-                    except:
+                    except Exception:
                         pass
                         
                     if is_new:

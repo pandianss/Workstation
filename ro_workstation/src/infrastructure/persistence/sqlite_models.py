@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+utc_now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String, Time, func
 from sqlalchemy.orm import declarative_base
@@ -26,7 +28,7 @@ class TaskModel(Base):
     status = Column(String, default="OPEN")
     source = Column(String)
     linked_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     snoozed_until = Column(Date, nullable=True)
     recurrence = Column(String, nullable=True)
 
@@ -89,7 +91,7 @@ class IngestedFileModel(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     filename = Column(String, unique=True, nullable=False)
-    ingested_at = Column(DateTime, default=datetime.utcnow)
+    ingested_at = Column(DateTime, default=utc_now)
 
 
 class MasterRecordModel(Base):
@@ -103,8 +105,8 @@ class MasterRecordModel(Base):
     name_local = Column(String)
     is_active = Column(Boolean, default=True)
     metadata_json = Column(String)  # Store JSON as string
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class BudgetModel(Base):

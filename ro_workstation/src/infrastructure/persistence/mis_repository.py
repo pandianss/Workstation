@@ -29,8 +29,8 @@ class MISRepository:
         try:
             existing = session.query(IngestedFileModel).filter(IngestedFileModel.filename == filename).first()
             if existing:
-                from datetime import datetime
-                existing.ingested_at = datetime.utcnow()
+                from datetime import datetime, timezone
+                existing.ingested_at = datetime.now(timezone.utc).replace(tzinfo=None)
             else:
                 session.add(IngestedFileModel(filename=filename))
             session.commit()

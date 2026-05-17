@@ -32,7 +32,7 @@ class SurveyService:
         def to_float(val):
             try:
                 return float(str(val or 0).replace(',', '').replace('₹', '').strip())
-            except:
+            except Exception:
                 return 0.0
 
         manual_holidays = to_float(data.get('manualHolidays', 0))

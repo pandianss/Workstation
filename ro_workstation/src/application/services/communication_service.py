@@ -1,6 +1,6 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from src.infrastructure.persistence.sqlite_models import CommunicationRequestModel
@@ -39,7 +39,7 @@ class CommunicationService:
         if request:
             request.response_message = response
             request.responded_by = responded_by
-            request.responded_at = datetime.utcnow()
+            request.responded_at = datetime.now(timezone.utc).replace(tzinfo=None)
             request.status = "RESOLVED"
             self.session.commit()
             return True
