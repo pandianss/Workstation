@@ -29,7 +29,7 @@ def render() -> None:
         from src.core.utils.number_utils import format_indian_number
         render_premium_metrics({
             "Total Deposits": f"₹ {format_indian_number(latest_data['TOTAL DEPOSITS'].sum())} Cr",
-            "Total Advances": f"₹ {format_indian_number(latest_data['TOTAL ADVANCES'].sum())} Cr",
+            "Total Advances": f"₹ {format_indian_number(latest_data['ADV'].sum())} Cr",
             "CD Ratio": f"{latest_data['CD RATIO'].mean():.2f}%",
             "Low Cost (CASA)": f"₹ {format_indian_number(latest_data['CASA'].sum())} Cr",
         })
