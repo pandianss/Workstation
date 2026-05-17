@@ -19,7 +19,6 @@ PAGE_REGISTRY = {
     "Policy & Product Archive": "src.interface.streamlit.pages.knowledge",
     "Field Guardian": "src.interface.streamlit.pages.guardian",
     "Branch Visits": "src.interface.streamlit.pages.visits",
-    "Surveys & Feedback": "src.interface.streamlit.pages.surveys",
     "Admin": "src.interface.streamlit.pages.admin",
     "Letter Generator": "src.interface.streamlit.pages.letter_generator",
     "Branch Portal": "src.interface.streamlit.pages.branch_portal",
