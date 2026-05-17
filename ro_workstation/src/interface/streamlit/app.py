@@ -146,7 +146,7 @@ def _render_sidebar() -> str:
         "⚖️ Compliance": ["Returns & Compliance"],
         "📂 Library & Archives": ["Policy & Product Archive", "Central Archive"],
         "🌐 Portals": ["Branch Portal", "Guest Portal", "Anniversary Portal"],
-        "🛠️ Management": ["Field Guardian", "Branch Visits", "Surveys & Feedback", "Management Center", "Admin"],
+        "🛠️ Management": ["Field Guardian", "Branch Visits", "Surveys & Feedback", "Admin"],
     }
 
     is_admin = st.session_state.get("role") == "ADMIN"

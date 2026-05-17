@@ -8,7 +8,9 @@ PAGE_REGISTRY = {
     "Operations": "src.interface.streamlit.pages.operational_wizards",
     "Operations & Returns": "src.interface.streamlit.pages.operational_wizards",
     "Document Hub": "src.interface.streamlit.pages.operational_wizards",
+    "Document Center": "src.interface.streamlit.pages.operational_wizards",
     "MIS": "src.interface.streamlit.pages.mis",
+    "Business Analytics": "src.interface.streamlit.pages.mis",
     "Office Note Generator": "src.interface.streamlit.pages.operational_wizards",
     "Returns & Compliance": "src.interface.streamlit.pages.returns",
     "Coordination Center": "src.interface.streamlit.pages.coordination",
@@ -27,7 +29,6 @@ PAGE_REGISTRY = {
     "Office Note Hub": "src.interface.streamlit.pages.office_note_hub",
     "Visiting Card Wizard": "src.interface.streamlit.pages.visiting_card_wizard",
     "Central Archive": "src.interface.streamlit.pages.archive",
-    "Management Center": "src.interface.streamlit.pages.management",
 }
 
 

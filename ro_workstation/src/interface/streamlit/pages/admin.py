@@ -2,11 +2,34 @@ from __future__ import annotations
 
 import streamlit as st
 import datetime
+import os
+import pandas as pd
+from src.core.paths import project_path
 
 from src.application.services.admin_service import AdminService
 from src.core.config.config_loader import get_app_settings, load_yaml_config
 from src.core.logging.audit import AuditLogger
-from src.interface.streamlit.components.primitives import render_action_bar, render_data_table
+from src.interface.streamlit.components.primitives import render_action_bar, render_data_table, render_premium_metrics
+
+
+def render_upload_card(title: str, expected_name: str, description: str, category: str, service) -> None:
+    with st.container(border=True):
+        st.markdown(f"#### {title}")
+        st.caption(description)
+        st.code(f"Expected: {expected_name}", language="text")
+        
+        uploaded_file = st.file_uploader(f"Upload {title}", type=["csv", "xlsx"], key=f"up_{category}", label_visibility="collapsed")
+        
+        if uploaded_file:
+            if st.button(f"Confirm {title} Update", key=f"btn_{category}", use_container_width=True, type="primary"):
+                with st.spinner(f"Updating {category}..."):
+                    success = service.update_master_file(category, uploaded_file.getvalue(), uploaded_file.name)
+                    if success:
+                        st.success(f"✅ {title} updated successfully!")
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Failed to update {title}. Please check the file format.")
 
 
 def render() -> None:
@@ -44,7 +67,7 @@ def render() -> None:
     def load_cached_frames():
         return master_service.get_units_frame(), master_service.get_staff_frame(), master_service.get_departments_frame()
 
-    tabs = st.tabs(["👥 Users", "🏦 Units", "👨‍💼 Staff", "🏢 Departments", "📜 Audit", "⚙️ Configuration"])
+    tabs = st.tabs(["👥 Users", "🏦 Units", "👨‍💼 Staff", "🏢 Departments", "📁 Upload Masters", "📜 Audit", "⚙️ Configuration"])
 
     with tabs[0]:
         render_data_table(admin_service.get_users_frame(), "User access", "users.xlsx")
@@ -186,9 +209,91 @@ def render() -> None:
         render_data_table(depts_df, "Department Registry", "departments.xlsx")
 
     with tabs[4]:
-        render_data_table(audit_logger.to_frame(), "Audit trail", "audit_log.xlsx")
+        st.markdown("### 📁 Regional Master Registry")
+        st.caption("Securely update staff, branch, and department masters using the file uploaders below.")
+        
+        staff_records = master_service.get_by_category("STAFF")
+        unit_records = master_service.get_by_category("UNIT")
+        dept_records = master_service.get_by_category("DEPT")
+        metrics = {
+            "Staff Records": len(staff_records),
+            "Active Units": len([r for r in unit_records if r.is_active]),
+            "Departments": len(dept_records),
+            "Last Sync": datetime.datetime.now().strftime("%H:%M")
+        }
+        render_premium_metrics(metrics)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            render_upload_card(
+                "Staff Registry", 
+                "Staff.csv", 
+                "Update employee records, designations, and postings.",
+                "STAFF",
+                master_service
+            )
+            
+            render_upload_card(
+                "Budget Targets", 
+                "Budget3.csv", 
+                "Update annual business targets for all parameters.",
+                "BUDGET",
+                master_service
+            )
+
+        with col_u2:
+            render_upload_card(
+                "Branch Master", 
+                "branches.csv", 
+                "Update branch addresses, types, and SOL mappings.",
+                "UNIT",
+                master_service
+            )
+            
+            render_upload_card(
+                "Department Directory", 
+                "departments.csv", 
+                "Update RO department codes and contact emails.",
+                "DEPT",
+                master_service
+            )
+
+        # Recovery & Backups
+        with st.expander("🛡️ Backup & Restore", expanded=False):
+            st.info("System automatically creates backups before every update. You can manually restore files if needed.")
+            files_dir = project_path("files")
+            backups = list(files_dir.glob("*.bak_*"))
+            if backups:
+                backup_data = []
+                for b in backups:
+                    try:
+                        parts = b.name.split(".bak_")
+                        backup_data.append({
+                            "File": parts[0],
+                            "Timestamp": parts[1],
+                            "Filename": b.name
+                        })
+                    except: continue
+                
+                backup_df = pd.DataFrame(backup_data)
+                for _, row in backup_df.sort_values("Timestamp", ascending=False).iterrows():
+                    b_col1, b_col2 = st.columns([4, 1])
+                    with b_col1:
+                        st.caption(f"📄 {row['File']} (Backup: {row['Timestamp']})")
+                    with b_col2:
+                        if st.button("🗑️", key=f"del_bak_{row['Filename']}", help=f"Delete backup {row['Filename']}"):
+                            (files_dir / row['Filename']).unlink()
+                            st.success("Backup deleted.")
+                            st.rerun()
+            else:
+                st.write("No backups found yet.")
 
     with tabs[5]:
+        render_data_table(audit_logger.to_frame(), "Audit trail", "audit_log.xlsx")
+
+    with tabs[6]:
         st.json(get_app_settings().model_dump())
         st.divider()
         st.markdown("### Advances Scheme Mapping (3-Level)")
