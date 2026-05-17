@@ -141,6 +141,9 @@ def render() -> None:
         st.markdown("### 💬 Regional Office Coordination")
         st.caption("Communicate requests directly to Regional Office departments.")
         
+        if "coms_success_msg" in st.session_state:
+            st.success(st.session_state.pop("coms_success_msg"))
+        
         with get_db_session() as session:
             com_svc = CommunicationService(session)
             
@@ -169,7 +172,7 @@ def render() -> None:
                             message=msg,
                             priority=priority
                         )
-                        st.success("Request sent to Regional Office!")
+                        st.session_state["coms_success_msg"] = f"✅ Request sent to RO {target_dept} successfully!"
                         st.rerun()
 
             # 2. View History
