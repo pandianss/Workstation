@@ -108,7 +108,7 @@ def render():
     st.markdown(f"#### Results ({len(df)})")
     
     display_df = df[["Source", "Title", "Ref No", "Status", "Date", "Dept"]].copy()
-    display_df["Date"] = pd.to_datetime(display_df["Date"], errors="coerce", format="mixed").dt.strftime("%d-%b-%Y %H:%M")
+    display_df["Date"] = pd.to_datetime(display_df["Date"], errors="coerce", utc=True).dt.strftime("%d-%b-%Y %H:%M")
     
     selection = st.dataframe(
         display_df,
