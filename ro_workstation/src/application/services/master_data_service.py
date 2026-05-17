@@ -52,6 +52,7 @@ class MasterDataService:
         cols = [
             "Roll No", "Name (En)", "Name (Hi)", "Name (Ta)", 
             "Branch SOL", "Designation", "Designation (Hi)", "Designation (Ta)",
+            "Grade", "Mobile", "Gender", "Departments",
             "Posting From", "Posting To", "DOB", "DOJ", "DOR", "Grade WEF", "Branch WEF", "Active"
         ]
         data = []
