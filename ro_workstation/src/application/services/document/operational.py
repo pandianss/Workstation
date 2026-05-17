@@ -14,11 +14,14 @@ class OperationalGenerator:
         )
         return self.engine.to_pdf(html)
 
-    def generate_circular(self, data: Dict[str, Any]) -> bytes:
-        html = self.engine.render_doc(
+    def generate_circular_html(self, data: Dict[str, Any]) -> str:
+        return self.engine.render_doc(
             "circular.html",
             **data
         )
+
+    def generate_circular_pdf(self, data: Dict[str, Any]) -> bytes:
+        html = self.generate_circular_html(data)
         return self.engine.to_pdf(html)
 
     def generate_visit_observation(self, data: Dict[str, Any]) -> bytes:

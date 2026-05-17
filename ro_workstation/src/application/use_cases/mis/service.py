@@ -116,17 +116,39 @@ class MISAnalyticsService:
         self.load_frame.clear()
         return success
 
+    def delete_records_by_date(self, target_date: datetime.date) -> tuple[int, int]:
+        with get_db_session() as session:
+            from src.infrastructure.persistence.sqlite_models import MISRecordModel, MilestoneAchievementModel
+            r_cnt = session.query(MISRecordModel).filter(MISRecordModel.date == target_date).delete(synchronize_session=False)
+            m_cnt = session.query(MilestoneAchievementModel).filter(MilestoneAchievementModel.date == target_date).delete(synchronize_session=False)
+            session.commit()
+            
+        self.load_frame.clear()
+        return r_cnt, m_cnt
+
+    def save_milestone_achievements(self, achievements: list[dict]) -> int:
+        with get_db_session() as session:
+            ms = MilestoneService(session)
+            saved_count = ms.save_achievements(achievements)
+            return saved_count
+
+    def get_available_dates(self) -> list:
+        return self.repository.get_available_dates()
+
+    def get_available_sols(self) -> list:
+        return self.repository.get_available_sols()
+
     @st.cache_data(show_spinner=True)
-    def load_frame(_self) -> pd.DataFrame:
+    def load_frame(_self, start_date=None, end_date=None) -> pd.DataFrame:
         """Cached data loading and enrichment."""
-        frame = _self.repository.load_frame()
+        frame = _self.repository.load_frame(start_date, end_date)
         if frame.empty:
             return frame
         frame.columns = [column.upper().replace("_", " ") for column in frame.columns]
         frame["DATE"] = pd.to_datetime(frame["DATE"])
         return _self._enrich_metrics(frame)
 
-    def get_data(self, force_ingest: bool = False) -> pd.DataFrame:
+    def get_data(self, force_ingest: bool = False, start_date=None, end_date=None) -> pd.DataFrame:
         """Main entry point for UI, handles ingestion before loading."""
         if force_ingest or st.session_state.get("mis_needs_ingest", True):
             mis_dir = getattr(self, "mis_dir", None)
@@ -134,7 +156,7 @@ class MISAnalyticsService:
                 self._ingest_new_files()
             st.session_state["mis_needs_ingest"] = False
             
-        frame = self.load_frame()
+        frame = self.load_frame(start_date, end_date)
         if not frame.empty:
             # Exclude Regional Office SOL (3933) as it usually contains aggregate figures 
             # and would cause double-counting in regional sums/charts.
@@ -158,38 +180,48 @@ class MISAnalyticsService:
         for cat_id in ["core_retail", "casa", "core_agri", "msme", "gold"]:
             frame = enrich_category(frame, cat_id)
         
-        # Use the official 'ADV' column from the ingested file as the ONLY source for 'TOTAL ADVANCES'
-        # This ensures 100% parity with official reports and avoids incorrect manual summations.
-        if "ADV" in frame.columns:
-            frame["TOTAL ADVANCES"] = frame["ADV"]
-        else:
-            # If ADV is missing, we initialize it to 0 to prevent downstream errors
-            frame["TOTAL ADVANCES"] = 0.0
+        # Ensure ADV exists to prevent downstream errors
+        if "ADV" not in frame.columns:
+            frame["ADV"] = 0.0
 
         frame["TOTAL DEPOSITS"] = safe_sum(frame, ["SB", "CD", "TD"])
         
-        frame["CD RATIO"] = np.where(frame["TOTAL DEPOSITS"] > 0, frame["TOTAL ADVANCES"] / frame["TOTAL DEPOSITS"] * 100, 0).round(2)
+        frame["CD RATIO"] = np.where(frame["TOTAL DEPOSITS"] > 0, frame["ADV"] / frame["TOTAL DEPOSITS"] * 100, 0).round(2)
         frame["TOTAL CASH"] = safe_sum(frame, ["CASH ON HAND", "ATM CASH", "BC CASH", "BNA CASH"])
         crl = frame["CRL"].fillna(0) if "CRL" in frame.columns else 0
         frame["CASH VS CRL"] = frame["TOTAL CASH"] - crl
         frame["TOTAL RECOVERY"] = safe_sum(frame, ["REC Q1", "REC Q2", "REC Q3", "REC Q4"])
         npa = frame["NPA"].fillna(0) if "NPA" in frame.columns else 0
-        frame["NPA %"] = np.where(frame["TOTAL ADVANCES"] > 0, npa / frame["TOTAL ADVANCES"] * 100, 0).round(2)
+        frame["NPA %"] = np.where(frame["ADV"] > 0, npa / frame["ADV"] * 100, 0).round(2)
         return frame
 
     @st.cache_resource(show_spinner=False, ttl=3600)
-    def build_snapshot(_self, filters_dict: dict | None) -> MISSnapshot | None:
-        """Cached snapshot builder. Accepts dict instead of MISFilter for easier caching."""
-        frame = _self.get_data()
+    def build_snapshot(_self, filters_dict: dict | MISFilter | None) -> MISSnapshot | None:
+        """Cached snapshot builder accepting either a MISFilter model or a cache-friendly dict."""
+        if isinstance(filters_dict, MISFilter):
+            filters_dict = filters_dict.model_dump()
+
+        selected_date = filters_dict.get("selected_date") if filters_dict else None
+        if not selected_date:
+            avail = _self.get_available_dates()
+            selected_date = avail[-1] if avail else datetime.date.today()
+            
+        fy_start = get_fy_start(selected_date)
+        start_date = fy_start - datetime.timedelta(days=366)
+
+        frame = _self.get_data(start_date=start_date, end_date=selected_date)
         if frame.empty:
             return None
         frame = frame.copy()
         frame.columns = [column.upper().replace("_", " ") for column in frame.columns]
+        if "ADV" not in frame.columns and "TOTAL ADVANCES" in frame.columns:
+            frame["ADV"] = frame["TOTAL ADVANCES"]
+        if "TOTAL DEPOSITS" not in frame.columns and "TOTAL DEPOSIT" in frame.columns:
+            frame["TOTAL DEPOSITS"] = frame["TOTAL DEPOSIT"]
         if "DATE" in frame.columns:
             frame["DATE"] = pd.to_datetime(frame["DATE"])
-        dates = sorted(frame["DATE"].dropna().dt.date.unique())
         
-        selected_date = (filters_dict.get("selected_date") if filters_dict else None) or dates[-1]
+        dates = sorted(frame["DATE"].dropna().dt.date.unique())
         sols = filters_dict.get("sols") if filters_dict else None
         
         selected = frame[frame["DATE"].dt.date == selected_date].copy()
@@ -202,10 +234,15 @@ class MISAnalyticsService:
         # the RO SOL to prevent double-counting. We always work with the sum of branches.
         pass
 
+        total_adv = float(selected["ADV"].sum()) if "ADV" in selected.columns else 0.0
+        total_npa = float(selected["NPA"].sum()) if "NPA" in selected.columns else 0.0
+        npa_pct = (total_npa / total_adv * 100) if total_adv > 0 else 0.0
+        
         kpis = {
-            "Total Advances": float(selected["TOTAL ADVANCES"].sum()) if "TOTAL ADVANCES" in selected.columns else 0.0,
+            "Total Advances": total_adv,
             "Total Deposits": float(selected["TOTAL DEPOSITS"].sum()) if "TOTAL DEPOSITS" in selected.columns else 0.0,
-            "NPA": float(selected["NPA"].sum()) if "NPA" in selected.columns else 0.0,
+            "NPA Amount": total_npa,
+            "NPA %": npa_pct,
             "CD Ratio": float(selected["CD RATIO"].mean()) if "CD RATIO" in selected.columns else 0.0,
         }
         
@@ -217,11 +254,11 @@ class MISAnalyticsService:
             # Calculate breakthroughs for the month of the selected reporting date
             milestone_breakthroughs = ms.get_milestone_achievements(target_date=selected_date)
 
-        sols = sorted(frame["SOL"].dropna().astype(int).unique().tolist())
+        avail_sols = sorted(frame["SOL"].dropna().astype(int).unique().tolist()) if "SOL" in frame.columns else []
         return MISSnapshot(
             selected_date=selected_date,
             available_dates=dates,
-            available_sols=sols,
+            available_sols=avail_sols,
             kpis=kpis,
             rows=selected.to_dict("records"),
             history_rows=history.to_dict("records"),
@@ -230,8 +267,10 @@ class MISAnalyticsService:
         )
 
     @st.cache_data(show_spinner=False)
-    def get_performance_metrics(_self, selected_date: datetime.date, metric_name: str = "TOTAL ADVANCES", sols: list[int] | None = None) -> dict:
-        frame = _self.get_data()
+    def get_performance_metrics(_self, selected_date: datetime.date, metric_name: str = "ADV", sols: list[int] | None = None) -> dict:
+        fy_start = get_fy_start(selected_date)
+        start_date = fy_start - datetime.timedelta(days=366)
+        frame = _self.get_data(start_date=start_date, end_date=selected_date)
         if frame.empty:
             return {}
 

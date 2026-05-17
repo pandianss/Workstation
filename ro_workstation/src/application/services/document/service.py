@@ -85,7 +85,17 @@ class DocumentService(DocumentEngine):
         html = self.generate_anniversary_poster_html(branch_name, years, open_date)
         return self.to_pdf(html)
 
-    def generate_staff_milestone_html(self, staff_roll: str, milestone_type: str) -> str:
+    def generate_anniversary_poster_image(self, branch_name: str, years: int, open_date: str, theme: str = "executive") -> bytes:
+        from .milestones import MilestoneGenerator
+        gen = MilestoneGenerator(self)
+        return gen.generate_branch_anniversary_image(branch_name, years, open_date, theme=theme)
+
+    def generate_visiting_card_image(self, data: dict) -> list[bytes]:
+        from .visiting_card_engine import VisitingCardEngine
+        engine = VisitingCardEngine()
+        return engine.render_card(data)
+
+    def generate_staff_milestone_image(self, staff_roll: str, milestone_type: str, theme: str = "executive") -> bytes:
         from .milestones import MilestoneGenerator
         gen = MilestoneGenerator(self)
         from src.infrastructure.persistence.master_repository import MasterRepository
@@ -98,7 +108,7 @@ class DocumentService(DocumentEngine):
             if unit: branch_name = unit.name_en
             
         profile = self.resolve_staff(staff_roll)
-        return gen.generate_staff_milestone_html(profile, milestone_type, branch_name)
+        return gen.generate_staff_milestone_image(profile, milestone_type, branch_name, theme=theme)
 
     def generate_high_value_dd_html(self, data: dict) -> str:
         from src.infrastructure.persistence.master_repository import MasterRepository
@@ -120,10 +130,27 @@ class DocumentService(DocumentEngine):
         html = self.generate_high_value_dd_html(data)
         return self.to_pdf(html)
 
+    def _prepare_circular_data(self, circular_data: dict) -> dict:
+        data = circular_data.copy()
+        if "author" in data:
+            data["sig"] = self.resolve_staff(data["author"])
+        else:
+            data["sig"] = {"name": "Manager", "roll": "12345", "name_ta": "மேலாளர்", "name_hi": "प्रबंधक", "desig_en": "Manager", "desig_ta": "மேலாளர்", "desig_hi": "प्रबंधक"}
+        data["is_html"] = True # Helps formatting in HTML preview vs PDF
+        return data
+
+    def generate_circular_html(self, circular_data: dict) -> str:
+        from .operational import OperationalGenerator
+        gen = OperationalGenerator(self)
+        data = self._prepare_circular_data(circular_data)
+        return gen.generate_circular_html(data)
+
     def generate_circular_pdf(self, circular_data: dict) -> bytes:
         from .operational import OperationalGenerator
         gen = OperationalGenerator(self)
-        return gen.generate_circular(circular_data)
+        data = self._prepare_circular_data(circular_data)
+        data["is_html"] = False
+        return gen.generate_circular_pdf(data)
 
     def generate_performance_appreciation(self, performance: dict) -> bytes:
         from .performance import PerformanceGenerator
@@ -151,3 +178,27 @@ class DocumentService(DocumentEngine):
         recipient = self.resolve_staff(recipient_roll)
         signatory = self.resolve_staff(signatory_roll)
         return gen.generate_appreciation_certificate(recipient, reason, signatory, date or datetime.date.today().strftime("%d.%m.%Y"))
+
+    def generate_milestones_pdf(self, milestones: list, summary: list, report_date: str) -> bytes:
+        """Generates a professional regional milestones inventory report."""
+        html = self.render_doc(
+            "milestones_report.html",
+            milestones=milestones,
+            summary=summary,
+            report_date=report_date
+        )
+        return self.to_pdf(html)
+
+    def generate_milestone_appreciation(self, breakthrough: dict, signatory: dict) -> bytes:
+        """Generates a formal appreciation letter for business milestones."""
+        html = self.render_doc(
+            "appreciation_letter.html",
+            branch_name=breakthrough["branch_name"],
+            sol=breakthrough["sol"],
+            milestone=breakthrough["milestone"],
+            parameter=breakthrough["parameter"],
+            achievement_date=breakthrough["date"].strftime("%d.%m.%Y"),
+            month_year=breakthrough["date"].strftime("%B %Y"),
+            signatory=signatory
+        )
+        return self.to_pdf(html)

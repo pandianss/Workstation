@@ -7,7 +7,7 @@ import streamlit as st
 
 from src.application.services.circular_service import CircularService
 from src.interface.streamlit.state.services import (
-    get_doc_service_v3, get_task_service, get_circular_service, 
+    get_doc_service_v4, get_task_service, get_circular_service, 
     get_mm_service, get_master_service
 )
 from src.interface.streamlit.components.primitives import render_action_bar, render_chart_container, render_data_table
@@ -21,7 +21,7 @@ def prepare_content(text: str, use_html: bool) -> str:
 
 def render() -> None:
     task_service = get_task_service()
-    doc_service = get_doc_service_v3()
+    doc_service = get_doc_service_v4()
     mm_service = get_mm_service()
     circ_service = get_circular_service()
 
@@ -45,10 +45,19 @@ def render_circular_management_tab(circ_service, doc_service):
     st.subheader("Official Circular Management")
     st.info("Draft and manage regional circulars with auto-incrementing reference numbers.")
     
+    master_svc = get_master_service()
+    dept_records = master_svc.get_by_category("DEPT")
+    dept_map = {d.code: f"{d.code} - {d.name_en}" for d in dept_records}
+    dept_map["ALL"] = "ALL - All Departments"
+    dept_options = ["ALL"] + sorted([d.code for d in dept_records])
+    default_dept = st.session_state.get("user_dept", "PLAN")
+    if default_dept not in dept_options:
+        default_dept = "ALL"
+    
     with st.form("circular_form"):
         c1, c2 = st.columns(2)
         with c1:
-            circ_dept = st.text_input("Department Code", value=st.session_state.get("user_dept", "PLAN"))
+            circ_dept = st.selectbox("Department Code", options=dept_options, index=dept_options.index(default_dept), format_func=lambda x: dept_map.get(x, x))
             circ_subject = st.text_input("Circular Subject")
         with c2:
             region_code = "DGL" # Default for Dindigul
@@ -91,7 +100,8 @@ def render_circular_management_tab(circ_service, doc_service):
                         p_date = datetime.datetime.fromisoformat(c_date_str) if 'T' in c_date_str else datetime.datetime.strptime(c_date_str, "%Y-%m-%d")
                         if (datetime.datetime.now() - p_date).days <= 7:
                             is_new = True
-                    except: pass
+                    except (TypeError, ValueError):
+                        pass
                     
                     # Unified date formatting
                     date_val = c.get('date', '')
@@ -129,10 +139,18 @@ def render_office_note_tab(doc_service, get_master_service):
     st.subheader("Trilingual Office Note Generator")
     st.info("Generates notes with standard trilingual headers. You can use HTML for advanced formatting.")
     
+    master_svc = get_master_service()
+    dept_records = master_svc.get_by_category("DEPT")
+    dept_map = {d.code: f"{d.code} - {d.name_en}" for d in dept_records}
+    dept_options = sorted([d.code for d in dept_records])
+    default_dept = st.session_state.get("user_dept", "PLAN")
+    if default_dept not in dept_options:
+        default_dept = dept_options[0] if dept_options else "PLAN"
+        
     with st.form("office_note_form"):
         col1, col2 = st.columns(2)
         with col1:
-            dept = st.text_input("Department", value=st.session_state.get("user_dept", "PLAN"))
+            dept = st.selectbox("Department", options=dept_options, index=dept_options.index(default_dept) if dept_options else 0, format_func=lambda x: dept_map.get(x, x))
             subject = st.text_input("Subject")
         with col2:
             ref = st.text_input("Reference No (Optional)")

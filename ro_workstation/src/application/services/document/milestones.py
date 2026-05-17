@@ -1,22 +1,15 @@
 from __future__ import annotations
-import base64
 from typing import Dict, Any
+from io import BytesIO
 from src.core.document.engine import DocumentEngine
-from src.core.paths import project_path
+from src.application.services.document.celebration_engine import CelebrationEngine
 
-
-def _staff_initials(name: str) -> str:
-    parts = [part for part in str(name).replace(".", " ").split() if part]
-    if not parts:
-        return "IOB"
-    if len(parts) == 1:
-        return parts[0][:3].upper()
-    return "".join(part[0] for part in parts[:3]).upper()
 
 class MilestoneGenerator:
     """Generates celebratory and milestone-based documents."""
     def __init__(self, engine: DocumentEngine | None = None) -> None:
         self.engine = engine or DocumentEngine()
+        self.image_engine = CelebrationEngine()
 
     def generate_anniversary_note_html(self, data: Dict[str, Any]) -> str:
         return self.engine.render_doc(
@@ -32,42 +25,35 @@ class MilestoneGenerator:
         """Backward-compatible PDF API used by older document-centre code."""
         return self.generate_anniversary_note_pdf(data)
 
-    def generate_staff_milestone_html(self, profile: Dict[str, Any], milestone_type: str, branch_name: str) -> str:
-        # Load Premium Assets
-        assets = {}
-        asset_files = {
-            "logo_url": "2026logo_min.svg",
-            "cake_url": "luxury_cake.png",
-            "bg_url": "premium_bg.png"
+    def generate_staff_milestone_image(self, profile: Dict[str, Any], milestone_type: str, branch_name: str, theme: str = "executive") -> bytes:
+        """Generates a high-resolution PNG image using the new PIL engine."""
+        data = {
+            "milestone_type": milestone_type.upper(),
+            "name_en": profile["name"],
+            "designation": profile.get("desig_en", ""),
+            "branch_name": branch_name
         }
-        
-        for key, filename in asset_files.items():
-            path = project_path("src", "assets", filename)
-            if path.exists():
-                with open(path, "rb") as f:
-                    mime = "image/svg+xml" if filename.endswith(".svg") else "image/png"
-                    encoded = base64.b64encode(f.read()).decode()
-                    assets[key] = f"data:{mime};base64,{encoded}"
-            else:
-                assets[key] = ""
+        image = self.image_engine.render_poster(data, theme_key=theme)
+        buf = BytesIO()
+        image.save(buf, format="PNG", quality=95)
+        return buf.getvalue()
 
-        return self.engine.render_doc(
-            "staff_milestone.html",
-            milestone_type=milestone_type.upper(),
-            name_en=profile["name"],
-            name_ta=profile.get("name_ta", ""),
-            designation=profile.get("desig_en", ""),
-            branch_name=branch_name,
-            **assets
-        )
-
-    def generate_staff_milestone_pdf(self, profile: Dict[str, Any], milestone_type: str, branch_name: str) -> bytes:
-        html = self.generate_staff_milestone_html(profile, milestone_type, branch_name)
-        return self.engine.to_pdf(html)
+    def generate_branch_anniversary_image(self, branch_name: str, years: int, open_date: str, theme: str = "executive") -> bytes:
+        """Generates a high-resolution branch anniversary PNG image."""
+        data = {
+            "branch_name": branch_name,
+            "years": years,
+            "open_date": open_date,
+            "region_name": self.engine.org_data.get("region_name", "Regional Office")
+        }
+        image = self.image_engine.render_anniversary(data, theme_key=theme)
+        buf = BytesIO()
+        image.save(buf, format="PNG", quality=95)
+        return buf.getvalue()
 
     def generate_staff_milestone(self, profile: Dict[str, Any], milestone_type: str, branch_name: str) -> bytes:
-        """Backward-compatible PDF API used by older portal/service code."""
-        return self.generate_staff_milestone_pdf(profile, milestone_type, branch_name)
+        """Backward-compatible API that now returns the PIL-generated PNG poster."""
+        return self.generate_staff_milestone_image(profile, milestone_type, branch_name)
 
     def generate_appreciation_certificate(self, recipient: Dict[str, Any], reason: str, signatory: Dict[str, Any], date: str) -> bytes:
         html = self.engine.render_doc(

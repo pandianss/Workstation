@@ -7,7 +7,7 @@ import streamlit as st
 
 from src.application.services.anniversary_service import AnniversaryService
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table
-from src.interface.streamlit.state.services import get_doc_service_v3
+from src.interface.streamlit.state.services import get_doc_service_v4
 
 
 def _month_sort_key(month: str) -> int:
@@ -34,7 +34,7 @@ def render() -> None:
     render_action_bar("Anniversary Portal", ["Founding Days", "Poster Generator", "Celebrations"])
 
     anniv_svc = AnniversaryService()
-    doc_service = get_doc_service_v3()
+    doc_service = get_doc_service_v4()
 
     tab1, tab2, tab3 = st.tabs(["Branch Foundings", "Staff Milestones", "Founding Registry"])
 
@@ -54,28 +54,39 @@ def render() -> None:
                         st.markdown(f"**{anniv['anniversary_date'].strftime('%d %B %Y')}**")
                         st.markdown(f":blue[{days_txt}] | **{anniv['years']} Years**")
 
-                        if st.button("Poster", key=f"portal_post_{anniv['sol']}", use_container_width=True):
+                        col_btns = st.columns(2)
+                        if col_btns[0].button("Poster", key=f"portal_post_{anniv['sol']}", use_container_width=True):
                             with st.spinner("Generating..."):
-                                html = doc_service.generate_anniversary_poster_html(
+                                img_bytes = doc_service.generate_anniversary_poster_image(
                                     anniv["name"],
                                     anniv["years"],
                                     anniv["open_date"].strftime("%d.%m.%Y"),
+                                    theme="executive"
                                 )
-                                st.session_state[f"portal_post_html_{anniv['sol']}"] = html
+                                st.session_state[f"portal_post_img_{anniv['sol']}"] = img_bytes
 
-                    preview_key = f"portal_post_html_{anniv['sol']}"
-                    if preview_key in st.session_state:
-                        with st.expander("Preview", expanded=True):
-                            preview_html = _get_html_preview(preview_key)
-                            if preview_html:
-                                st.components.v1.html(preview_html, height=400, scrolling=True)
-                                st.download_button(
-                                    "Download",
-                                    data=preview_html,
-                                    file_name=f"Poster_{anniv['sol']}.html",
-                                    mime="text/html",
-                                    use_container_width=True,
+                        if col_btns[1].button("Letter", key=f"portal_letter_{anniv['sol']}", use_container_width=True):
+                            with st.spinner("Generating Letter..."):
+                                pdf_bytes = doc_service.generate_pdf_anniversary(
+                                    anniv["name"],
+                                    anniv["sol"],
+                                    anniv["years"],
+                                    anniv["open_date"].strftime("%d.%m.%Y")
                                 )
+                                st.session_state[f"portal_letter_pdf_{anniv['sol']}"] = pdf_bytes
+
+                    # Previews
+                    preview_post_key = f"portal_post_img_{anniv['sol']}"
+                    if preview_post_key in st.session_state:
+                        with st.expander("Poster Preview", expanded=True):
+                            st.image(st.session_state[preview_post_key], use_container_width=True)
+                            st.download_button("Download PNG", data=st.session_state[preview_post_key], file_name=f"Poster_{anniv['sol']}.png", mime="image/png", use_container_width=True)
+
+                    preview_letter_key = f"portal_letter_pdf_{anniv['sol']}"
+                    if preview_letter_key in st.session_state:
+                        with st.expander("Letter Preview", expanded=True):
+                            st.success("Official Campaign Letter Generated!")
+                            st.download_button("Download Campaign Letter (PDF)", data=st.session_state[preview_letter_key], file_name=f"Campaign_Letter_{anniv['sol']}.pdf", mime="application/pdf", use_container_width=True)
         else:
             st.info("No branch anniversaries found in the next 30 days.")
 
@@ -110,28 +121,34 @@ def render() -> None:
                         days_txt = "TODAY" if celeb["days_to_go"] == 0 else f"In {celeb['days_to_go']} days"
                         st.markdown(f"**{celeb['event_date'].strftime('%d %B')}** | :blue[{days_txt}]")
 
+                        selected_theme = st.selectbox(
+                            "Theme",
+                            ["executive", "modern", "traditional"],
+                            key=f"theme_{celeb['roll']}_{celeb['type']}",
+                            format_func=lambda x: x.title()
+                        )
+
                         if st.button(
                             "Create Poster",
                             key=f"staff_post_{celeb['roll']}_{celeb['type']}",
                             use_container_width=True,
                         ):
-                            with st.spinner("Rendering..."):
-                                html = doc_service.generate_staff_milestone_html(celeb["roll"], celeb["type"])
-                                st.session_state[f"staff_post_html_{celeb['roll']}"] = html
+                            with st.spinner("Rendering Image..."):
+                                img_bytes = doc_service.generate_staff_milestone_image(celeb["roll"], celeb["type"], theme=selected_theme)
+                                st.session_state[f"staff_post_img_{celeb['roll']}"] = img_bytes
 
-                    preview_key = f"staff_post_html_{celeb['roll']}"
+                    preview_key = f"staff_post_img_{celeb['roll']}"
                     if preview_key in st.session_state:
-                        with st.expander("Preview", expanded=True):
-                            preview_html = _get_html_preview(preview_key)
-                            if preview_html:
-                                st.components.v1.html(preview_html, height=400, scrolling=True)
-                                st.download_button(
-                                    "Download",
-                                    data=preview_html,
-                                    file_name=f"Milestone_{celeb['roll']}.html",
-                                    mime="text/html",
-                                    use_container_width=True,
-                                )
+                        with st.expander("Preview & Download", expanded=True):
+                            img_data = st.session_state[preview_key]
+                            st.image(img_data, use_container_width=True)
+                            st.download_button(
+                                "Download High-Res PNG",
+                                data=img_data,
+                                file_name=f"Birthday_Poster_{celeb['roll']}.png",
+                                mime="image/png",
+                                use_container_width=True,
+                            )
         else:
             st.info(f"No staff milestones found in the next {lookahead} days.")
 
@@ -166,25 +183,35 @@ def render() -> None:
             st.markdown("#### Batch Poster Generation")
             st.caption("Generate a poster for any branch regardless of date.")
 
-            col_b, col_y, col_a = st.columns([3, 1, 1])
+            col_b, col_y, col_theme = st.columns([2, 1, 1])
             with col_b:
                 target_branch = st.selectbox("Select Branch", display_df["Name"].tolist())
             with col_y:
                 row = display_df[display_df["Name"] == target_branch].iloc[0]
                 auto_years = anniv_svc.calculate_years(row["Open Date"])
                 years = st.number_input("Years", min_value=1, value=auto_years)
-            with col_a:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("Generate Poster", use_container_width=True, key="batch_gen_btn"):
-                    with st.spinner("Generating..."):
-                        html = doc_service.generate_anniversary_poster_html(target_branch, years, row["Open Date"])
-                        st.session_state["portal_batch_poster_html"] = html
+            with col_theme:
+                selected_theme = st.selectbox("Theme", ["executive", "modern", "traditional"], format_func=lambda x: x.title(), key="batch_theme_sel")
 
-            if "portal_batch_poster_html" in st.session_state:
-                with st.expander("Poster Preview & Image Download", expanded=True):
-                    preview_html = _get_html_preview("portal_batch_poster_html")
-                    if preview_html:
-                        st.components.v1.html(preview_html, height=800, scrolling=True)
-                        st.info("Use the blue button inside the preview above to download the high-res PNG.")
+            col_btn1, col_btn2 = st.columns(2)
+            if col_btn1.button("Generate Poster", use_container_width=True, key="batch_gen_btn"):
+                with st.spinner("Generating Poster..."):
+                    img_bytes = doc_service.generate_anniversary_poster_image(target_branch, years, row["Open Date"], theme=selected_theme)
+                    st.session_state["portal_batch_poster_img"] = img_bytes
+
+            if col_btn2.button("Generate Letter", use_container_width=True, key="batch_gen_letter_btn"):
+                with st.spinner("Generating Letter..."):
+                    pdf_bytes = doc_service.generate_pdf_anniversary(target_branch, row["Code"], years, row["Open Date"])
+                    st.session_state["portal_batch_letter_pdf"] = pdf_bytes
+
+            if "portal_batch_poster_img" in st.session_state:
+                with st.expander("Poster Preview & Download", expanded=True):
+                    st.image(st.session_state["portal_batch_poster_img"], use_container_width=True)
+                    st.download_button("Download PNG", data=st.session_state["portal_batch_poster_img"], file_name=f"Poster_{target_branch}.png", mime="image/png", use_container_width=True)
+
+            if "portal_batch_letter_pdf" in st.session_state:
+                with st.expander("Letter Preview & Download", expanded=True):
+                    st.success("Official Campaign Letter Generated!")
+                    st.download_button("Download Campaign Letter (PDF)", data=st.session_state["portal_batch_letter_pdf"], file_name=f"Campaign_Letter_{target_branch}.pdf", mime="application/pdf", use_container_width=True)
         else:
             st.warning("No unit data with founding dates found. Please ensure branches.csv is synced.")

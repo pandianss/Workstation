@@ -51,42 +51,78 @@ def _render_sidebar() -> str:
     if "requested_page" not in st.session_state:
         st.session_state["requested_page"] = "Dashboard"
 
-    # Robust CSS for Link-style Navigation
+    # Premium Sidebar Navigation CSS
     st.sidebar.markdown(
         """
         <style>
-        /* Target buttons in the sidebar to look like links and be left-aligned */
-        [data-testid="stSidebar"] .stButton > button {
-            background-color: transparent !important;
-            border: none !important;
-            padding: 0px !important;
-            margin: 0px !important;
-            height: 24px !important;
-            min-height: 24px !important;
-            line-height: 24px !important;
-            color: rgba(255, 255, 255, 0.7) !important;
-            text-align: left !important;
-            justify-content: flex-start !important;
-            font-size: 0.95rem !important;
-            font-weight: 400 !important;
-            box-shadow: none !important;
-            display: flex !important;
+        /* Modern Sidebar Container */
+        [data-testid="stSidebar"] {
+            background-color: #0f172a !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
         }
-        /* Ensure the internal flex container also aligns left */
-        [data-testid="stSidebar"] .stButton > button div {
-            justify-content: flex-start !important;
+        
+        /* 1. GLOBAL LEFT ALIGNMENT (CRITICAL) */
+        [data-testid="stSidebar"] .stButton > button,
+        [data-testid="stSidebar"] .stButton > button * {
             text-align: left !important;
+            justify-content: flex-start !important;
+            display: flex !important;
+            align-items: center !important;
             width: 100% !important;
         }
-        [data-testid="stSidebar"] .stButton > button:hover {
-            color: #ffffff !important;
+
+        /* 2. SECTION HEADERS (The Boxes) */
+        .hdr-trigger + div .stButton > button {
+            background-color: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            padding: 10px 14px !important;
+            color: #f1f5f9 !important;
+            font-weight: 700 !important;
+            font-size: 0.95rem !important;
+            margin-top: 14px !important;
+            margin-bottom: 6px !important;
+            border-radius: 8px !important;
+        }
+
+        /* 3. SUBMENU ITEMS (Pure Links) */
+        [data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stButton > button {
             background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding-left: 0 !important;
+            color: rgba(255, 255, 255, 0.45) !important;
+            font-size: 0.85rem !important;
+            animation: navSlideDown 0.3s ease-out forwards;
+        }
+        
+        [data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stButton > button:hover {
+            color: #60a5fa !important;
             text-decoration: underline !important;
+            background-color: transparent !important;
         }
-        /* Tighten spacing between elements in sidebar */
+
+        @keyframes navSlideDown {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Quick Access Links */
+        div[data-testid="stSidebar"] button[key^="quick_"] {
+            background-color: transparent !important;
+            border: none !important;
+            color: #94a3b8 !important;
+            font-size: 0.9rem !important;
+            padding: 4px 10px !important;
+        }
+
+        /* Tighten vertical spacing */
         [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-            gap: 0.1rem !important;
+            gap: 0px !important;
         }
+
+        /* Scrollbar Styling */
+        [data-testid="stSidebar"] ::-webkit-scrollbar { width: 4px; }
+        [data-testid="stSidebar"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         </style>
         """,
         unsafe_allow_html=True
@@ -105,33 +141,51 @@ def _render_sidebar() -> str:
     
     # Define Groups for logical organization
     navigation_structure = {
-        "📊 Insights": ["Dashboard", "Business Analytics", "Campaign Management"],
-        "🏗️ Operations": ["Operations & Returns", "Letter Generator", "High Value DD Note", "Office Note Hub", "Office Note Generator", "Document Center", "Coordination Center"],
-        "⚖️ Compliance": ["Returns & Compliance", "DICGC Return", "Branch Visits"],
-        "📚 Resources": ["Knowledge Base", "Surveys & Feedback"],
-        "🌐 Portals": ["Branch Portal", "Guest Portal"],
-        "⚙️ Management": ["Admin"]
+        "📊 Insights": ["Dashboard", "MIS"],
+        "🏗️ Operations": ["Document Hub", "Coordination Center"],
+        "⚖️ Compliance": ["Returns & Compliance"],
+        "📂 Library & Archives": ["Policy & Product Archive", "Central Archive"],
+        "🌐 Portals": ["Branch Portal", "Guest Portal", "Anniversary Portal"],
+        "🛠️ Management": ["Field Guardian", "Branch Visits", "Surveys & Feedback", "Management Center", "Admin"],
     }
 
     is_admin = st.session_state.get("role") == "ADMIN"
     current_page = st.session_state.get("requested_page", "Dashboard")
 
-    # Grouped Navigation with Expanders
+    # --- Accordion Navigation Logic ---
+    if "active_group" not in st.session_state:
+        # Initial determination of active group based on current page
+        st.session_state["active_group"] = next((g for g, pgs in navigation_structure.items() if current_page in pgs), "📊 Insights")
+
     for group, pages in navigation_structure.items():
-        # Check if any page in this group is allowed
         allowed_in_group = [p for p in pages if is_admin or p != "Admin"]
         if not allowed_in_group:
             continue
             
-        with st.sidebar.expander(group, expanded=(current_page in allowed_in_group)):
+        # Inject the CSS trigger before the header button
+        st.sidebar.markdown('<div class="hdr-trigger"></div>', unsafe_allow_html=True)
+        is_active = st.session_state["active_group"] == group
+        header_label = f"{'▼' if is_active else '▶'} {group}"
+        
+        if st.sidebar.button(header_label, key=f"hdr_{group}", use_container_width=True):
+            st.session_state["active_group"] = group if not is_active else None
+            st.rerun()
+
+        # Render children only if this group is active (The Accordion effect)
+        if is_active:
+            # Wrap submenus in an animated container
+            st.sidebar.markdown('<div class="submenu-container">', unsafe_allow_html=True)
             for p in allowed_in_group:
-                # Use primary button style for the active page
-                btn_type = "primary" if p == current_page else "secondary"
-                if st.button(p, key=f"nav_btn_{p}", use_container_width=True, type=btn_type):
-                    if p != current_page:
-                        st.session_state["requested_page"] = p
-                        audit_logger.log(username, f"Viewed page {p}")
-                        st.rerun()
+                # Physical Indent via columns
+                col_indent, col_btn = st.sidebar.columns([0.1, 0.9])
+                with col_btn:
+                    if st.button(p, key=f"nav_btn_{p}", use_container_width=True):
+                        if p != current_page:
+                            st.session_state["requested_page"] = p
+                            st.session_state["active_group"] = group
+                            audit_logger.log(username, f"Viewed page {p}")
+                            st.rerun()
+            st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
     page = st.session_state["requested_page"]
     
@@ -227,4 +281,6 @@ def run() -> None:
     
     _render_header()
     page = _render_sidebar()
+    from src.interface.streamlit.state.app_state import cleanup_stale_session_assets
+    cleanup_stale_session_assets(page)
     render_page(page)

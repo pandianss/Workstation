@@ -8,8 +8,8 @@ import plotly.express as px
 import streamlit as st
 
 
-def render_status_badge(text: str) -> None:
-    st.markdown(f'<span class="status-badge">{text}</span>', unsafe_allow_html=True)
+def render_status_badge(text: str, level: str = "low") -> None:
+    st.markdown(f'<span class="status-pill status-{level}">{text}</span>', unsafe_allow_html=True)
 
 
 def render_metric_cards(metrics: dict[str, str | int | float]) -> None:
@@ -31,14 +31,16 @@ def render_filter_panel(title: str, caption: str) -> None:
 
 
 def render_action_bar(title: str, actions: list[str]) -> None:
-    items = "".join([f"<span class='app-badge'>{action}</span>" for action in actions])
+    items = "".join([f"<span class='status-pill status-low' style='margin-left: 8px; background: rgba(59, 130, 246, 0.1); color: #60a5fa;'>{action}</span>" for action in actions])
     st.markdown(
         f"""
-        <div class="page-toolbar">
-            <div>
-                <div class="section-title"><strong>{title}</strong></div>
+        <div class="top-bar-container">
+            <div style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; color: #f8fafc;">
+                {title}
             </div>
-            <div class="app-badges">{items}</div>
+            <div style="display: flex; align-items: center;">
+                {items}
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -48,18 +50,16 @@ def render_action_bar(title: str, actions: list[str]) -> None:
 from src.core.utils.number_utils import format_indian_number
 
 def render_data_table(frame: pd.DataFrame, title: str, export_name: str) -> None:
-    # Unified date and number formatting for all columns
+    # Optimized column formatting
     display_df = frame.copy()
     for col in display_df.columns:
-        # Format datetimes
         if pd.api.types.is_datetime64_any_dtype(display_df[col]):
             display_df[col] = display_df[col].dt.strftime('%d.%m.%Y')
-        # Format large numbers (likely currency or units)
         elif pd.api.types.is_numeric_dtype(display_df[col]):
-            # Heuristic: Format if values are large or column name suggests currency
             col_upper = str(col).upper()
-            if any(k in col_upper for k in ["AMOUNT", "BALANCE", "ADVANCE", "DEPOSIT", "VALUE", "BUDGET"]):
-                display_df[col] = display_df[col].apply(lambda x: format_indian_number(x) if pd.notnull(x) else x)
+            if any(k in col_upper for k in ["AMOUNT", "BALANCE", "ADVANCE", "DEPOSIT", "VALUE", "BUDGET", "CASH", "NPA", "BUS"]):
+                # map() is generally faster than apply() for element-wise operations
+                display_df[col] = display_df[col].map(lambda x: format_indian_number(x) if pd.notnull(x) else x)
 
     st.markdown(
         f"""
@@ -117,7 +117,7 @@ def render_premium_metrics(metrics: dict[str, Any]) -> None:
                 display_val = str(value)
                 
             st.markdown(f"""
-                <div class="glass-card">
+                <div class="metric-card">
                     <div class="metric-label">{label}</div>
                     <div class="metric-value">{display_val}</div>
                 </div>

@@ -1,9 +1,12 @@
 from __future__ import annotations
 import datetime
+import logging
 import math
 from typing import List, Dict, Any
 import streamlit as st
 from src.infrastructure.persistence.master_repository import MasterRepository
+
+logger = logging.getLogger(__name__)
 
 class AnniversaryService:
     def __init__(self, repo: MasterRepository | None = None) -> None:
@@ -44,8 +47,8 @@ class AnniversaryService:
                         "years": years,
                         "days_to_go": diff
                     })
-            except Exception as e:
-                print(f"Error parsing date for SOL {unit.code}: {e}")
+            except (TypeError, ValueError) as e:
+                logger.warning("Skipping invalid opening date for SOL %s: %s", unit.code, e)
                 continue
 
         # Sort by days remaining
@@ -59,11 +62,11 @@ class AnniversaryService:
             if not open_date: return 0
             today = datetime.date.today()
             return today.year - open_date.year
-        except:
+        except (TypeError, ValueError):
             return 0
 
     @st.cache_data(ttl=3600)
-    def get_staff_celebrations(_self, days: int = 7) -> List[Dict[str, Any]]:
+    def get_staff_celebrations(_self, days: int = 3) -> List[Dict[str, Any]]:
         """Finds staff with upcoming birthdays or retirement in the next N days."""
         staff_list = _self.repo.get_by_category("STAFF")
         today = datetime.date.today()

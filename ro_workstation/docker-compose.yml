@@ -1,28 +1,24 @@
 services:
-  app:
-    image: ro-workstation-app
-    build: .
+  ro-workstation:
+    build:
+      context: .
+    image: ro-workstation-app:latest
+    container_name: ro-workstation
+    restart: unless-stopped
     ports:
       - "8501:8501"
+    env_file:
+      - .env
     environment:
-      RO_ADMIN_PASSWORD: ${RO_ADMIN_PASSWORD:-admin}
-      RO_PUBLIC_URL: ${RO_PUBLIC_URL:-}
-      RO_OFFLINE_MODE: ${RO_OFFLINE_MODE:-true}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
-      INTERNAL_SMTP_HOST: ${INTERNAL_SMTP_HOST:-mailserver.banklan}
-      INTERNAL_SMTP_PORT: ${INTERNAL_SMTP_PORT:-25}
+      RO_ENVIRONMENT: production
+      RO_OFFLINE_MODE: "true"
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
-    depends_on:
-      - ollama
-    restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ./ollama_models:/root/.ollama
-    restart: unless-stopped
+      - ./files/generated:/app/files/generated
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

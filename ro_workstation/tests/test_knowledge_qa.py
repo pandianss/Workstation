@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from application.use_cases.knowledge.qa import KnowledgeQaService
+from src.application.use_cases.knowledge.qa import KnowledgeQaService
 
 
 class KnowledgeQaTests(unittest.TestCase):

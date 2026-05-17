@@ -1,4 +1,6 @@
 import os
+import json
+import logging
 import pandas as pd
 from typing import List
 import datetime
@@ -9,6 +11,8 @@ from sqlalchemy.orm import sessionmaker
 from src.core.paths import project_path
 from src.infrastructure.persistence.json_repo import JsonRepository
 from src.infrastructure.persistence.sqlite_models import Base, BudgetModel
+
+logger = logging.getLogger(__name__)
 
 class BudgetRepository:
     def __init__(self) -> None:
@@ -43,17 +47,16 @@ class BudgetRepository:
         sync_meta_path = project_path("data", "budget_sync.json")
         if os.path.exists(sync_meta_path):
             try:
-                with open(sync_meta_path, 'r') as f:
-                    import json
+                with open(sync_meta_path, "r", encoding="utf-8") as f:
                     meta = json.load(f)
                     if meta.get("mtime") == file_mtime and meta.get("size") == file_size:
                         return # No changes
-            except: pass
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("Ignoring unreadable budget sync state %s: %s", sync_meta_path, exc)
 
         self._ingest_csv(csv_path)
         
-        with open(sync_meta_path, 'w') as f:
-            import json
+        with open(sync_meta_path, "w", encoding="utf-8") as f:
             json.dump({"mtime": file_mtime, "size": file_size}, f)
 
     def _ingest_csv(self, csv_path) -> None:
@@ -80,7 +83,8 @@ class BudgetRepository:
                         v = str(val).replace(",", "").strip()
                         if v in ["-", "", "None", "nan"]: return 0.0
                         return float(v)
-                    except: return 0.0
+                    except (TypeError, ValueError):
+                        return 0.0
 
                 objects = []
                 for _, row in df.iterrows():
@@ -99,7 +103,7 @@ class BudgetRepository:
             finally:
                 session.close()
         except Exception as e:
-            print(f"Sync error: {e}")
+            logger.exception("Budget sync failed for %s: %s", csv_path, e)
 
     def get_monthly_targets(self, sols: List[int], fy_start: datetime.date) -> pd.DataFrame:
         """Returns a pivot table of monthly targets for the FY, including the baseline."""
@@ -170,7 +174,7 @@ class BudgetRepository:
             if result is not None:
                 return float(result)
         except Exception as e:
-            print(f"Query error: {e}")
+            logger.exception("Budget query failed for %s: %s", metric, e)
         finally:
             session.close()
 
@@ -184,12 +188,12 @@ class BudgetRepository:
         last_sync = "Never"
         if os.path.exists(sync_meta_path):
             try:
-                with open(sync_meta_path, 'r') as f:
-                    import json
+                with open(sync_meta_path, "r", encoding="utf-8") as f:
                     meta = json.load(f)
                     mtime = meta.get("mtime", 0)
                     last_sync = datetime.datetime.fromtimestamp(mtime).strftime("%d-%m-%Y %H:%M")
-            except: pass
+            except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                logger.warning("Ignoring unreadable budget sync status %s: %s", sync_meta_path, exc)
             
         session = self.session_factory()
         fy_ranges = []

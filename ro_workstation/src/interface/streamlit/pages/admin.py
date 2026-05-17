@@ -196,14 +196,14 @@ def render() -> None:
         import json
         import os
         if os.path.exists(scheme_path):
-            with open(scheme_path, 'r') as f:
+            with open(scheme_path, 'r', encoding="utf-8") as f:
                 schemes = json.load(f)
             
             new_schemes_str = st.text_area("Edit Scheme Mapping (JSON)", value=json.dumps(schemes, indent=2), height=300)
             if st.button("Update Scheme Mapping"):
                 try:
                     json.loads(new_schemes_str)
-                    with open(scheme_path, 'w') as f:
+                    with open(scheme_path, 'w', encoding="utf-8") as f:
                         f.write(new_schemes_str)
                     st.success("Scheme mapping updated successfully.")
                 except Exception as e:

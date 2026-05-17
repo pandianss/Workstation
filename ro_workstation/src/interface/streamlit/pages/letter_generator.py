@@ -14,15 +14,10 @@ def render() -> None:
     
     render_action_bar("Letter Generator", ["Budget Communication", "Performance Appreciation", "Shortfall Explanations"])
     
-    # Load MIS data to get available dates for performance letters
-    df = analytics_service.get_data()
-    if df.empty:
-        st.error("No MIS data found. Please upload MIS files in the Business Analytics page.")
-        return
-        
-    dates = sorted(df["DATE"].dt.date.unique())
+    # Fetch distinct available dates from database metadata
+    dates = analytics_service.get_available_dates()
     if not dates:
-        st.warning("No reporting dates found in the data.")
+        st.error("No MIS data found. Please upload MIS files in the Business Analytics page.")
         return
 
     tabs = st.tabs(["📬 Performance Letters", "🎯 Budget Communication", "📜 Custom Correspondence", "🎖️ Appreciation Certificates"])

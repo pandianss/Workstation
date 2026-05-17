@@ -7,12 +7,15 @@ import tempfile
 import os
 import time
 import shutil
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 from jinja2 import Environment, FileSystemLoader
 
 from src.core.paths import project_path
 from src.core.registry.parameter_service import ParameterRegistry
+
+logger = logging.getLogger(__name__)
 
 class DocumentEngine:
     """
@@ -61,7 +64,7 @@ class DocumentEngine:
                 
                 final = res + "." + dec_part
                 return "-" + final if is_neg else final
-            except:
+            except (TypeError, ValueError):
                 return str(value)
         
         def format_inr_k(value):
@@ -84,7 +87,7 @@ class DocumentEngine:
                     if rem: res = rem + "," + res
                 
                 return "-" + res if is_neg else res
-            except:
+            except (TypeError, ValueError):
                 return str(value)
 
         def format_date(value, fmt="%d.%m.%Y"):
@@ -96,11 +99,14 @@ class DocumentEngine:
                         try:
                             value = datetime.datetime.strptime(value, f)
                             break
-                        except: continue
-                except: return value
+                        except ValueError:
+                            continue
+                except (TypeError, ValueError):
+                    return value
             try:
                 return value.strftime(fmt)
-            except: return str(value)
+            except AttributeError:
+                return str(value)
 
         self.env.filters['format_inr'] = format_inr
         self.env.filters['format_inr_k'] = format_inr_k
@@ -137,12 +143,18 @@ class DocumentEngine:
             "headRoll": org.get("head_user_id")
         }
 
-        # Load Logo
+        # Load Logos
         logo_path = self.assets_dir / "doc_min.svg"
         if logo_path.exists():
             with logo_path.open("rb") as f:
                 logo_b64 = base64.b64encode(f.read()).decode('utf-8')
                 data["bankLogo"] = f"data:image/svg+xml;base64,{logo_b64}"
+                
+        beti_path = self.assets_dir / "beti.svg"
+        if beti_path.exists():
+            with beti_path.open("rb") as f:
+                beti_b64 = base64.b64encode(f.read()).decode('utf-8')
+                data["betiLogo"] = f"data:image/svg+xml;base64,{beti_b64}"
                 
         return data
 
@@ -164,18 +176,15 @@ class DocumentEngine:
         return template.render(**context)
 
     def to_pdf(self, html: str) -> bytes:
-        """Converts HTML to PDF using Headless Edge."""
+        """Converts HTML to PDF using Headless Edge with optimized performance."""
+        import datetime
         with tempfile.TemporaryDirectory() as tmp_dir:
             html_file = os.path.join(tmp_dir, "input.html")
             pdf_file = os.path.join(tmp_dir, "output.pdf")
             
-            # Ensure fonts are available to the converter
-            if self.fonts_dir.exists():
-                for font_file in self.fonts_dir.glob("*.ttf"):
-                    shutil.copy(font_file, tmp_dir)
-            
-            # Make font URLs relative for the converter
-            html = html.replace(self.fonts_dir.as_uri() + "/", "./")
+            # Optimization: Instead of copying fonts for every PDF (slow), 
+            # we use absolute file:/// URLs which Edge can read if --allow-file-access-from-files is set.
+            # This significantly reduces I/O overhead during batch generation.
             
             with open(html_file, "w", encoding="utf-8") as f:
                 f.write(html)
@@ -183,9 +192,19 @@ class DocumentEngine:
             infra = self.registry.get_infrastructure()
             edge_path = infra.get("browser_path", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
             
+            # Performance & Stability Flags for Headless Edge
             cmd = [
-                edge_path, "--headless=new", "--disable-gpu", "--no-sandbox",
-                f"--print-to-pdf={pdf_file}", "--no-pdf-header-footer", html_file
+                edge_path, 
+                "--headless=new", 
+                "--disable-gpu", 
+                "--no-sandbox",
+                "--disable-software-rasterizer",
+                "--disable-dev-shm-usage",
+                "--disable-extensions",
+                "--allow-file-access-from-files", # Crucial for absolute file:/// font URLs
+                f"--print-to-pdf={pdf_file}", 
+                "--no-pdf-header-footer", 
+                html_file
             ]
             
             startupinfo = None
@@ -195,31 +214,36 @@ class DocumentEngine:
                 startupinfo.wShowWindow = subprocess.SW_HIDE
 
             try:
-                subprocess.run(cmd, check=True, timeout=45, startupinfo=startupinfo)
+                # Increased timeout to 120s to handle high-density templates or slow disk I/O
+                subprocess.run(cmd, check=True, timeout=120, startupinfo=startupinfo)
                 
-                # Verify file writing
-                for _ in range(20):
-                    if os.path.exists(pdf_file) and os.path.getsize(pdf_file) > 500:
+                # Robust verification of file writing
+                # Some versions of Edge return success before the file is fully flushed to disk
+                for _ in range(40):
+                    if os.path.exists(pdf_file) and os.path.getsize(pdf_file) > 1024:
                         break
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                 
                 with open(pdf_file, "rb") as f:
                     return f.read()
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(f"PDF generation timed out (120s). Edge process may be hanging or blocked by security software.")
             except Exception as e:
                 raise RuntimeError(f"PDF generation failed: {str(e)}")
 
     def resolve_staff(self, identifier: str) -> Dict[str, Any]:
-        """Resolve roll number or name to trilingual signatory details."""
+        """Resolve roll number or name to trilingual signatory details. Optimized with caching."""
         identifier = str(identifier)
-        from src.application.services.master_service import DesignationMapper
+        from src.interface.streamlit.state.services import get_master_service
+        from src.application.services.translation_service import DesignationMapper
+        
         try:
-            from src.infrastructure.persistence.master_repository import MasterRepository
-            repo = MasterRepository()
-            staff_records = repo.get_by_category("STAFF")
+            svc = get_master_service()
+            staff_records = svc.get_by_category("STAFF")
             found = next((s for s in staff_records if s.code == identifier or s.name_en == identifier or f"{s.name_en} ({s.metadata.get('designation')})" == identifier), None)
+            
             if found:
                 meta = found.metadata or {}
-                
                 # Prioritize metadata-based trilingual designations
                 if meta.get("desig_hi") and meta.get("desig_ta"):
                     return {
@@ -255,5 +279,6 @@ class DocumentEngine:
                     "name": found.name_en, "name_hi": found.name_hi or found.name_en, "name_ta": found.name_local or found.name_en,
                     "roll": found.code, "desig_en": desig["en"], "desig_hi": desig["hi"], "desig_ta": desig["ta"]
                 }
-        except: pass
+        except Exception as exc:
+            logger.warning("Failed to resolve staff %s: %s", identifier, exc)
         return {"name": identifier, "name_hi": identifier, "name_ta": identifier, "roll": "N/A", "desig_en": "Authorized Signatory", "desig_hi": "प्राधिकृत हस्ताक्षरकर्ता", "desig_ta": "அங்கீகரிக்கப்பட்ட கையொப்பமிட்டவர்"}

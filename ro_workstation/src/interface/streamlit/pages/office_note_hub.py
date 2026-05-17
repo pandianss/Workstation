@@ -6,12 +6,12 @@ import datetime
 from src.interface.streamlit.components.primitives import (
     render_action_bar, render_premium_metrics, render_data_table, render_chart_container
 )
-from src.interface.streamlit.state.services import get_doc_service_v3
+from src.interface.streamlit.state.services import get_doc_service_v4
 
 from src.application.services.document.office_note_service import OfficeNoteService
 
 def render():
-    doc_service = get_doc_service_v3()
+    doc_service = get_doc_service_v4()
     note_service = OfficeNoteService()
     
     render_action_bar("Office Note Hub", ["Archive", "Search", "Management"])

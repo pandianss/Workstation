@@ -10,19 +10,19 @@ class SurveyService:
 
     def _ensure_data_file(self):
         if not os.path.exists(self.data_path):
-            with open(self.data_path, 'w') as f:
+            with open(self.data_path, 'w', encoding="utf-8") as f:
                 json.dump([], f)
 
     def _load_data(self) -> List[Dict]:
-        with open(self.data_path, 'r') as f:
+        with open(self.data_path, 'r', encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, dict) and "surveys" in data:
                 return data["surveys"]
             return data if isinstance(data, list) else []
 
     def _save_data(self, surveys: List[Dict]):
-        with open(self.data_path, 'w') as f:
-            json.dump({"surveys": surveys}, f, indent=2)
+        with open(self.data_path, 'w', encoding="utf-8") as f:
+            json.dump({"surveys": surveys}, f, indent=2, ensure_ascii=False)
 
     def calculate_viability(self, data: Dict) -> Dict:
         """

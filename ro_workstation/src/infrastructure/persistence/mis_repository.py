@@ -40,6 +40,22 @@ class MISRepository:
         finally:
             session.close()
 
+    def delete_ingested_file(self, filename: str) -> bool:
+        """Removes the record of an ingested file from the tracking table."""
+        session = self.session_factory()
+        try:
+            target = session.query(IngestedFileModel).filter(IngestedFileModel.filename == filename).first()
+            if target:
+                session.delete(target)
+                session.commit()
+                return True
+            return False
+        except Exception:
+            session.rollback()
+            return False
+        finally:
+            session.close()
+
     def save_records(self, records: list[dict]) -> None:
         session = self.session_factory()
         try:
@@ -74,9 +90,27 @@ class MISRepository:
         finally:
             session.close()
 
-    def load_frame(self) -> pd.DataFrame:
+    def get_available_dates(self) -> list:
+        session = self.session_factory()
+        dates = session.query(MISRecordModel.date).distinct().all()
+        session.close()
+        return sorted([d[0] for d in dates if d[0]])
+
+    def get_available_sols(self) -> list:
+        session = self.session_factory()
+        sols = session.query(MISRecordModel.sol).distinct().all()
+        session.close()
+        return sorted([int(s[0]) for s in sols if s[0] is not None])
+
+    def load_frame(self, start_date=None, end_date=None) -> pd.DataFrame:
         session = self.session_factory()
         query = session.query(MISRecordModel)
+        
+        if start_date:
+            query = query.filter(MISRecordModel.date >= start_date)
+        if end_date:
+            query = query.filter(MISRecordModel.date <= end_date)
+            
         frame = pd.read_sql(query.statement, self.engine)
         session.close()
         return frame

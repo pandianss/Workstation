@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import pandas as pd
+import streamlit as st
 from src.core.paths import project_path
 from src.core.config.config_loader import get_app_settings
 from src.application.services.translation_service import SalutationMapper, DesignationMapper
@@ -21,15 +22,23 @@ class MasterService:
         self.data_service = MasterDataService(self.repo)
         self.settings = get_app_settings()
 
+    @st.cache_resource(show_spinner=False, ttl=3600)
+    def get_by_category(_self, category: str) -> list[MasterRecord]:
+        """Returns all records for a given category (STAFF, UNIT, DEPT). Cached for speed."""
+        return _self.repo.get_by_category(category)
+
     # Delegated Data Methods
-    def get_units_frame(self) -> pd.DataFrame:
-        return self.data_service.get_units_frame()
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def get_units_frame(_self) -> pd.DataFrame:
+        return _self.data_service.get_units_frame()
 
-    def get_departments_frame(self) -> pd.DataFrame:
-        return self.data_service.get_departments_frame()
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def get_departments_frame(_self) -> pd.DataFrame:
+        return _self.data_service.get_departments_frame()
 
-    def get_staff_frame(self) -> pd.DataFrame:
-        return self.data_service.get_staff_frame()
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def get_staff_frame(_self) -> pd.DataFrame:
+        return _self.data_service.get_staff_frame()
 
     # Delegated Sync Methods
     def sync_staff_from_csv(self) -> None:
@@ -42,13 +51,44 @@ class MasterService:
     def sync_departments_from_csv(self) -> None:
         self.sync_service.sync_departments_from_csv()
 
+    def update_master_file(self, category: str, file_bytes: bytes, filename: str) -> bool:
+        """Saves uploaded file to the appropriate location and triggers sync."""
+        target_map = {
+            "STAFF": project_path("files", "Staff.csv"),
+            "UNIT": project_path("files", "branches.csv"),
+            "DEPT": project_path("files", "departments.csv"),
+            "BUDGET": project_path("files", "Budget3.csv")
+        }
+        
+        target_path = target_map.get(category.upper())
+        if not target_path: return False
+        
+        # Backup existing
+        if target_path.exists():
+            backup_path = target_path.with_suffix(f".bak_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            os.rename(target_path, backup_path)
+            
+        with open(target_path, "wb") as f:
+            f.write(file_bytes)
+            
+        # Trigger appropriate sync
+        if category.upper() == "STAFF": self.sync_staff_from_csv()
+        elif category.upper() == "UNIT": self.sync_units_from_csv()
+        elif category.upper() == "DEPT": self.sync_departments_from_csv()
+        
+        self._update_sync_state()
+        return True
+
     def sync_if_needed(self, force: bool = False) -> None:
         state_path = project_path("data", "master_sync.json")
         state = {}
         if state_path.exists():
             try:
-                with open(state_path, "r") as f: state = json.load(f)
-            except: state = {}
+                with open(state_path, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("Ignoring unreadable master sync state %s: %s", state_path, exc)
+                state = {}
         
         files = {
             "staff_csv": project_path("files", "Staff.csv"),
@@ -82,20 +122,22 @@ class MasterService:
                     if path.exists(): state[key] = os.path.getmtime(path)
         
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(state_path, 'w') as f:
+        with open(state_path, "w", encoding="utf-8") as f:
             json.dump(state, f)
         
         # Invalidate Streamlit cache if in Streamlit context
         try:
             import streamlit as st
             st.cache_data.clear()
-        except: pass
+        except Exception as exc:
+            logger.debug("Streamlit cache clear skipped: %s", exc)
 
     # Staff Management Logic
-    def get_ro_executives(self) -> list[dict[str, str]]:
-        staff = self.repo.get_by_category("STAFF")
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def get_ro_executives(_self) -> list[dict[str, str]]:
+        staff = _self.get_by_category("STAFF")
         execs = []
-        region_code = self.settings.region_code
+        region_code = _self.settings.region_code
         for s in staff:
             meta = s.metadata or {}
             if str(meta.get("sol")) == region_code:
@@ -105,10 +147,9 @@ class MasterService:
                 # Check explicit grade first
                 is_exec = any(g in grade for g in ["MM II", "MM III", "SM IV", "SM V", "TEG VI", "TEG VII"])
                 
-                # Fallback to designation keywords if grade is missing (common in some Excel exports)
+                # Fallback to designation keywords if grade is missing
                 if not grade or grade.strip() == "":
                     if any(kw in desig for kw in ["MANAGER", "CHIEF", "REGIONAL", "AGM", "DGM", "GM"]):
-                        # Exclude "ASST MANAGER" or "ASSISTANT MANAGER" as they are Scale I
                         if "ASST" not in desig and "ASSISTANT" not in desig:
                             is_exec = True
                 

@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 from src.interface.streamlit.state.services import (
-    get_mis_service, get_circular_service, get_doc_service_v3, get_master_service
+    get_mis_service, get_circular_service, get_doc_service_v4, get_master_service
 )
 from src.application.services.communication_service import CommunicationService
 from src.infrastructure.persistence.database import get_db_session
@@ -46,15 +46,15 @@ def render() -> None:
                 # Trend Chart (Current FY)
                 st.markdown("#### 📈 Branch Business Trend")
                 fy_start = pd.to_datetime(get_fy_start(datetime.date.today()))
-                br_hist = br_data[br_data["DATE"] >= fy_start].groupby("DATE")[["TOTAL DEPOSITS", "TOTAL ADVANCES"]].sum().reset_index()
-                render_chart_container(br_hist, "DATE", ["TOTAL DEPOSITS", "TOTAL ADVANCES"], f"{branch_name} Growth (Current FY)")
+                br_hist = br_data[br_data["DATE"] >= fy_start].groupby("DATE")[["TOTAL DEPOSITS", "ADV"]].sum().reset_index()
+                render_chart_container(br_hist, "DATE", ["TOTAL DEPOSITS", "ADV"], f"{branch_name} Growth (Current FY)")
             else:
                 st.warning(f"No MIS data found for SOL {sol_id}.")
 
     # --- TAB: CIRCULARS ---
     with tabs[1]:
         circ_service = get_circular_service()
-        doc_service = get_doc_service_v3()
+        doc_service = get_doc_service_v4()
         all_circs = circ_service.get_all()
         
         st.markdown("### 📢 Regional Notifications")

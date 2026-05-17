@@ -4,8 +4,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-from application.services.operation_service import OperationService
-from core.paths import project_path
+from src.application.services.operation_service import OperationService
+from src.core.paths import project_path
 
 
 class OperationServiceTests(unittest.TestCase):

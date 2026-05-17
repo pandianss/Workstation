@@ -12,6 +12,7 @@ Detailed documentation is available in the `docs/` directory:
 - **[User Guide](docs/user_guide.md)**: Comprehensive manual for Regional Office staff.
 - **[Developer Guide](docs/developer_guide.md)**: Setup, standards, and how to extend the project.
 - **[Deployment Guide](docs/deployment.md)**: Docker and offline deployment procedures.
+- **[Data Hygiene](docs/data_hygiene.md)**: Source-control rules for runtime data, generated files, and operational archives.
 
 ## Quick Start
 

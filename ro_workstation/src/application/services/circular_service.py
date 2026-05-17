@@ -10,19 +10,19 @@ class CircularService:
 
     def _ensure_data_file(self):
         if not os.path.exists(self.data_path):
-            with open(self.data_path, 'w') as f:
+            with open(self.data_path, 'w', encoding="utf-8") as f:
                 json.dump([], f)
 
     def _load_data(self) -> List[Dict]:
-        with open(self.data_path, 'r') as f:
+        with open(self.data_path, 'r', encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, dict) and "circulars" in data:
                 return data["circulars"]
             return data if isinstance(data, list) else []
 
     def _save_data(self, circulars: List[Dict]):
-        with open(self.data_path, 'w') as f:
-            json.dump({"circulars": circulars}, f, indent=2)
+        with open(self.data_path, 'w', encoding="utf-8") as f:
+            json.dump({"circulars": circulars}, f, indent=2, ensure_ascii=False)
 
     def generate_ref_no(self, region_code: str, dept_code: str) -> str:
         """Generate CIR/REGION/DEPT/SEQ ref number"""

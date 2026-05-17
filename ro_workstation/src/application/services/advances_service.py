@@ -3,6 +3,9 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AdvancesService:
     """
@@ -37,7 +40,7 @@ class AdvancesService:
         
     def _load_scheme_map(self):
         if os.path.exists(self.config_path):
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path, 'r', encoding="utf-8") as f:
                 return json.load(f)
         return {}
 
@@ -120,7 +123,9 @@ class AdvancesService:
             try:
                 if len(val) == 8 and val.isdigit(): return datetime.strptime(val, '%Y%m%d')
                 return pd.to_datetime(val, errors='coerce')
-            except: return None
+            except (TypeError, ValueError) as exc:
+                logger.debug("Could not parse advance open date %r: %s", val, exc)
+                return None
 
         df['OPEN_DT_NORM'] = df['OPEN_DT'].apply(parse_dt)
         # For Portfolio: take NET_BALANCE (normalized to BALANCE_CR)

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from modules.notes.generator import NoteGenerator
+from src.application.services.notes.generator import NoteGenerator
 
 
 class NoteGeneratorTests(unittest.TestCase):

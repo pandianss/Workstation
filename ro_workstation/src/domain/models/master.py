@@ -3,8 +3,11 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 import uuid
 
+def generate_uuid() -> str:
+    return str(uuid.uuid4())
+
 class MasterRecord(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = Field(default_factory=generate_uuid)
     category: str
     code: str
     name_en: str

@@ -1,7 +1,10 @@
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import os
+import logging
 from pathlib import Path
 from src.core.paths import project_path
+
+logger = logging.getLogger(__name__)
 
 class GraphicService:
     """Service to generate social media recognition posters (1080x1920)."""
@@ -41,7 +44,8 @@ class GraphicService:
             if os.path.exists(favicon_path):
                 fav = Image.open(favicon_path).convert("RGBA")
                 self._draw_favicon_rain(img, fav)
-        except: pass
+        except (OSError, ValueError) as exc:
+            logger.warning("Could not draw favicon decoration: %s", exc)
 
         # 5. Official Branding Header
         try:
@@ -52,7 +56,8 @@ class GraphicService:
                 logo_w = int(logo.width * (logo_h / logo.height))
                 logo = logo.resize((logo_w, logo_h), Image.Resampling.LANCZOS)
                 img.paste(logo, (self.width//2 - logo_w//2, 120), logo)
-        except: pass
+        except (OSError, ValueError) as exc:
+            logger.warning("Could not draw logo on milestone poster: %s", exc)
 
         # Highlighted Region Name (Larger as requested)
         header_y = 320
@@ -61,16 +66,19 @@ class GraphicService:
         # 6. Content Section
         draw.text((self.width//2, 600), "CONGRATULATIONS!", fill="#FFFFFF", font=font_large, anchor="mm")
         
-        # Branch Name (Wrapped)
+        # Branch Name (Adaptive & Wrapped)
         branch_name = achievement.get("branch_name", "Unknown Branch").upper()
         import textwrap
-        wrapped = textwrap.wrap(branch_name, width=15)
+        wrapped = textwrap.wrap(branch_name, width=18) # Slightly wider wrap
         
         curr_y = 850
         for line in wrapped:
-            # Drop shadow for readability against confetti
-            draw.text((self.width//2 + 5, curr_y + 5), line, fill=(0,0,0,200), font=font_huge, anchor="mm")
-            draw.text((self.width//2, curr_y), line, fill="#FFFFFF", font=font_huge, anchor="mm")
+            # Dynamically size each line to fit 950px width
+            line_font = self._get_adaptive_font(line, 130, 950)
+            
+            # Drop shadow
+            draw.text((self.width//2 + 5, curr_y + 5), line, fill=(0,0,0,200), font=line_font, anchor="mm")
+            draw.text((self.width//2, curr_y), line, fill="#FFFFFF", font=line_font, anchor="mm")
             curr_y += 150
 
         # 7. Milestone Badge
@@ -128,12 +136,33 @@ class GraphicService:
             f_mask = f.split()[3].point(lambda p: p * (alpha / 255.0))
             img.paste(f, (x, y), f_mask)
 
+    def _get_adaptive_font(self, text: str, initial_size: int, max_width: int, is_bold: bool = True) -> ImageFont.FreeTypeFont:
+        """Dynamically scales font size to fit within the specified width."""
+        font_name = "NotoSans-Bold.ttf" if is_bold else "NotoSans-Regular.ttf"
+        size = initial_size
+        font = self._get_font(font_name, size)
+        
+        # Measure and reduce
+        while size > 20:
+            font = self._get_font(font_name, size)
+            bbox = font.getbbox(text)
+            text_width = bbox[2] - bbox[0]
+            if text_width <= max_width:
+                break
+            size -= 5
+        return font
+
     def _get_font(self, name, size):
         font_path = os.path.join(self.fonts_dir, name)
         try:
             if os.path.exists(font_path):
                 return ImageFont.truetype(font_path, size)
-        except: pass
+        except OSError as exc:
+            logger.debug("Could not load font %s: %s", font_path, exc)
+        # Fallback to SegoeUI if NotoSans is missing or corrupted
+        fallback_path = os.path.join(self.fonts_dir, "SegoeUI-Bold.ttf")
+        if os.path.exists(fallback_path):
+             return ImageFont.truetype(fallback_path, size)
         return ImageFont.load_default()
 
     def _draw_glow(self, img, pos, radius, color):

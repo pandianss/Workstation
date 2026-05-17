@@ -2,8 +2,8 @@ import unittest
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from application.services.task_service import TaskService
-from domain.schemas.task import TaskCreate, TaskRead
+from src.application.services.task_service import TaskService
+from src.domain.schemas.task import TaskCreate, TaskRead
 
 
 class TaskServiceTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class TaskServiceTests(unittest.TestCase):
     def test_parse_nlp_task_normalizes_invalid_priority_and_due_date(self):
         service = TaskService(repository=MagicMock())
         service.repository.create.side_effect = lambda payload: TaskRead(id="T1", status="OPEN", **payload.model_dump())
-        with patch("application.services.task_service.LLMClient.generate_json", return_value={"title": "Follow up", "priority": "urgent", "due_date": "bad-date"}):
+        with patch("src.application.services.task_service.LLMClient.generate_json", return_value={"title": "Follow up", "priority": "urgent", "due_date": "bad-date"}):
             task = service.parse_nlp_task("follow up", "user1", "CRMD")
         self.assertEqual(task.priority, "P3")
         self.assertEqual(task.due_date, date.today())

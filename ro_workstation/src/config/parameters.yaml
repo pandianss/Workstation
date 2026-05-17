@@ -249,7 +249,7 @@ parameters:
 
   # --- OVERALL ---
   - id: total_advances
-    mis_col: "TOTAL ADVANCES"
+    mis_col: "ADV"
     budget_code: "Adv"
     display_name: "Total Advances"
     category: "OVERALL"

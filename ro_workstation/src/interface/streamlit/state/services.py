@@ -10,10 +10,8 @@ from src.application.use_cases.mis.service import MISAnalyticsService
 from src.application.use_cases.global_search import GlobalSearchService
 from src.application.services.master_service import MasterService
 
-# Cache invalidation trigger v3 - force reload for High Value DD methods
-# Force reload v4
 @st.cache_resource
-def get_doc_service_v3():
+def get_doc_service_v4():
     return DocumentService()
 
 @st.cache_resource

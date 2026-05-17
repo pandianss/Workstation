@@ -232,10 +232,13 @@ class MasterSyncService:
             code = str(row["code"]).zfill(4)
             incoming_codes.add(code)
             meta = {
-                "type": str(row["type"]),
-                "district": str(row["district"]),
-                "populationGroup": str(row["populationGroup"]),
-                "address": str(row["address"]),
+                "type": str(row.get("type", "")),
+                "district": str(row.get("district", row.get("District", ""))),
+                "populationGroup": str(row.get("populationGroup", "")),
+                "address1": str(row.get("Address1", row.get("address1", ""))),
+                "address2": str(row.get("Address2", row.get("address2", ""))),
+                "pincode": str(row.get("pincode", row.get("Pincode", ""))),
+                "address": str(row.get("address", "")),
                 "size": str(row.get("size", "MEDIUM")),
                 "openDate": str(row.get("openDate", ""))
             }

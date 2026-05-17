@@ -3,10 +3,10 @@ import streamlit as st
 import pandas as pd
 import datetime
 from src.interface.streamlit.components.primitives import render_action_bar
-from src.interface.streamlit.state.services import get_doc_service_v3
+from src.interface.streamlit.state.services import get_doc_service_v4
 
 def render() -> None:
-    doc_service = get_doc_service_v3()
+    doc_service = get_doc_service_v4()
     render_action_bar("High Value DD Wizard", ["Strategic Approval", "Operational Scrutiny", "Policy Check"])
 
     # Initialize Wizard State

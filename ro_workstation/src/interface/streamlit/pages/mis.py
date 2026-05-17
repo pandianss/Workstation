@@ -19,6 +19,170 @@ from src.core.utils.number_utils import format_crore as format_cr
 from src.infrastructure.persistence.master_repository import MasterRepository
 from src.application.services.document import DocumentService
 
+@st.fragment
+def render_ingestion_portal(service, letter_service):
+    st.markdown("#### 📥 Live Ingestion Portal")
+    st.caption("Upload daily MIS and Master feeds to keep the cockpit synchronized.")
+    
+    # Ingestion Cards
+    up_col1, up_col2 = st.columns(2)
+    
+    with up_col1:
+        with st.container(border=True):
+            st.caption("Daily SOL-wise business figures (.xlsx)")
+            mis_files = st.file_uploader(
+                "Upload MIS", 
+                type=["xlsx"], 
+                key=st.session_state.get("uploader_key", "daily_mis"), 
+                label_visibility="collapsed", 
+                accept_multiple_files=True
+            )
+            
+            if mis_files:
+                if st.button("🚀 Start Ingestion", use_container_width=True, type="primary"):
+                    progress_bar = st.progress(0, text="Initializing ingestion...")
+                    mis_dir = project_path("data", "mis")
+                    mis_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # Phase 1: Saving files to disk
+                    for i, mis_file in enumerate(mis_files):
+                        current_pct = (i + 1) / (len(mis_files) * 2)
+                        progress_bar.progress(
+                            current_pct, 
+                            text=f"📥 Saving files: {i+1} of {len(mis_files)} ({int(current_pct*100)}%)"
+                        )
+                        with open(mis_dir / mis_file.name, "wb") as f:
+                            f.write(mis_file.getbuffer())
+                    
+                    # Phase 2: Processing and Syncing to DB
+                    def update_progress(pct, msg):
+                        total_pct = 0.5 + (pct / 2)
+                        clean_msg = msg.replace("Processing ", "")
+                        progress_bar.progress(
+                            total_pct, 
+                            text=f"⚙️ Syncing Data: {clean_msg} ({int(total_pct*100)}%)"
+                        )
+
+                    results = service.sync_database(progress_callback=update_progress)
+                    
+                    if results:
+                        progress_bar.empty()
+                        st.success(f"✅ Successfully ingested {len(results)} records!")
+                        st.session_state["mis_needs_ingest"] = True
+                        # Force uploader reset by changing key
+                        st.session_state["uploader_key"] = datetime.datetime.now().timestamp()
+                        st.rerun()
+
+    with up_col2:
+        with st.container(border=True):
+            st.markdown("##### 🎯 Target & Budget Feed")
+            st.caption("Update annual goals and SOL targets (.csv)")
+            budget_file = st.file_uploader("Upload Budget", type=["csv"], key="daily_budget", label_visibility="collapsed")
+            if budget_file:
+                with st.spinner("Syncing targets..."):
+                    target_path = project_path("files", "Budget3.csv")
+                    with open(target_path, "wb") as f:
+                        f.write(budget_file.getbuffer())
+                    letter_service.budget_repo.sync_if_needed()
+                    st.success("Regional targets updated successfully!")
+                    st.rerun()
+
+    st.divider()
+    h_title_col, h_action_col = st.columns([3, 1])
+    with h_title_col:
+        st.markdown("##### 📜 Ingestion History")
+    
+    # Show last 10 archived MIS files for bulk management
+    mis_archive = project_path("data", "mis", "archive")
+    if mis_archive.exists():
+        history_files = sorted(list(mis_archive.glob("*.xlsx")), key=lambda x: x.stat().st_mtime, reverse=True)[:10]
+        if history_files:
+            to_delete = []
+            
+            with h_action_col:
+                # Multi-action buttons
+                if st.button("🗑️ Bulk Delete", use_container_width=True, type="secondary", help="Delete selected files"):
+                    st.session_state["show_bulk_confirm"] = True
+            
+            # Bulk Confirmation Dialog
+            if st.session_state.get("show_bulk_confirm"):
+                with st.container(border=True):
+                    st.warning("⚠️ Are you sure you want to delete selected data feeds?")
+                    c1, c2 = st.columns(2)
+                    if c1.button("✅ Confirm Deletion", use_container_width=True):
+                        files_to_del = st.session_state.get("mis_selected_files", [])
+                        progress_bar = st.progress(0, text="Initializing batch removal...")
+                        deleted_count = 0
+                        
+                        for i, f_name in enumerate(files_to_del):
+                            pct = (i + 1) / len(files_to_del)
+                            progress_bar.progress(
+                                pct,
+                                text=f"🗑️ Deleting: {f_name} ({i+1}/{len(files_to_del)}) - {int(pct*100)}%"
+                            )
+                            if service.delete_mis_file(f_name):
+                                deleted_count += 1
+                                
+                        progress_bar.empty()
+                        st.success(f"Successfully removed {deleted_count} data feeds.")
+                        st.session_state["show_bulk_confirm"] = False
+                        st.session_state["mis_selected_files"] = []
+                        st.rerun()
+                    if c2.button("❌ Cancel", use_container_width=True):
+                        st.session_state["show_bulk_confirm"] = False
+                        st.rerun()
+
+            # History List with Checkboxes
+            selected_files = st.session_state.get("mis_selected_files", [])
+            
+            for f in history_files:
+                h_time = datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime("%d-%b %H:%M")
+                h_col1, h_col2 = st.columns([0.1, 4.9])
+                with h_col1:
+                    is_selected = st.checkbox("", key=f"chk_{f.name}", value=f.name in selected_files, label_visibility="collapsed")
+                    if is_selected and f.name not in selected_files:
+                        selected_files.append(f.name)
+                    elif not is_selected and f.name in selected_files:
+                        selected_files.remove(f.name)
+                with h_col2:
+                    st.caption(f"✅ **{f.name}** (Ingested: {h_time})")
+            
+            st.session_state["mis_selected_files"] = selected_files
+            
+            if st.button("🧨 Clear Entire Archive", type="secondary", use_container_width=True):
+                all_files = list(mis_archive.glob("*.xlsx"))
+                progress_bar = st.progress(0, text="🧨 Wiping entire archive...")
+                for i, f in enumerate(all_files):
+                    pct = (i + 1) / len(all_files)
+                    progress_bar.progress(
+                        pct, 
+                        text=f"💥 Removing: {f.name} ({i+1}/{len(all_files)}) - {int(pct*100)}%"
+                    )
+                    service.delete_mis_file(f.name)
+                progress_bar.empty()
+                st.success("Entire archive cleared!")
+                st.rerun()
+        else:
+            st.write("No ingestion history available.")
+    
+    with st.expander("🛠️ Advanced Maintenance"):
+        st.markdown("##### 🧨 Targeted Data Removal")
+        st.caption("Surgically remove all records and milestones for a specific reporting date.")
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            target_del_date = st.date_input("Date to Wipe", value=None, min_value=datetime.date(2024, 1, 1), key="wipe_date")
+        with c2:
+            st.write("") # Spacer
+            if st.button("🗑️ Wipe Date", use_container_width=True, type="secondary"):
+                if target_del_date:
+                    with st.spinner(f"Wiping {target_del_date}..."):
+                        r_cnt, m_cnt = service.delete_records_by_date(target_del_date)
+                        st.success(f"Successfully wiped {r_cnt} records and {m_cnt} milestones for {target_del_date}.")
+                        service.build_snapshot.clear()
+                        st.rerun()
+                else:
+                    st.error("Select a date.")
+
 def render() -> None:
     service = MISAnalyticsService()
     # Temporary cache clear to ensure the new caching and ADV logic is applied
@@ -40,185 +204,17 @@ def render() -> None:
     
     # ─── REGIONAL DATA FEED (DAILY INGESTION) ──────────────────────────────
     with st.expander("📡 Regional Data Feed", expanded=False):
-        st.markdown("#### 📥 Live Ingestion Portal")
-        st.caption("Upload daily MIS and Master feeds to keep the cockpit synchronized.")
-        
-        # Ingestion Cards
-        up_col1, up_col2 = st.columns(2)
-        
-        with up_col1:
-            with st.container(border=True):
-                st.caption("Daily SOL-wise business figures (.xlsx)")
-                mis_files = st.file_uploader(
-                    "Upload MIS", 
-                    type=["xlsx"], 
-                    key=st.session_state.get("uploader_key", "daily_mis"), 
-                    label_visibility="collapsed", 
-                    accept_multiple_files=True
-                )
-                
-                if mis_files:
-                    if st.button("🚀 Start Ingestion", use_container_width=True, type="primary"):
-                        progress_bar = st.progress(0, text="Initializing ingestion...")
-                        mis_dir = project_path("data", "mis")
-                        mis_dir.mkdir(parents=True, exist_ok=True)
-                        
-                        # Phase 1: Saving files to disk
-                        for i, mis_file in enumerate(mis_files):
-                            current_pct = (i + 1) / (len(mis_files) * 2)
-                            progress_bar.progress(
-                                current_pct, 
-                                text=f"📥 Saving files: {i+1} of {len(mis_files)} ({int(current_pct*100)}%)"
-                            )
-                            with open(mis_dir / mis_file.name, "wb") as f:
-                                f.write(mis_file.getbuffer())
-                        
-                        # Phase 2: Processing and Syncing to DB
-                        def update_progress(pct, msg):
-                            total_pct = 0.5 + (pct / 2)
-                            clean_msg = msg.replace("Processing ", "")
-                            progress_bar.progress(
-                                total_pct, 
-                                text=f"⚙️ Syncing Data: {clean_msg} ({int(total_pct*100)}%)"
-                            )
-
-                        results = service.sync_database(progress_callback=update_progress)
-                        
-                        if results:
-                            progress_bar.empty()
-                            st.success(f"✅ Successfully ingested {len(results)} records!")
-                            st.session_state["mis_needs_ingest"] = True
-                            # Force uploader reset by changing key
-                            st.session_state["uploader_key"] = datetime.datetime.now().timestamp()
-                            st.rerun()
-
-        with up_col2:
-            with st.container(border=True):
-                st.markdown("##### 🎯 Target & Budget Feed")
-                st.caption("Update annual goals and SOL targets (.csv)")
-                budget_file = st.file_uploader("Upload Budget", type=["csv"], key="daily_budget", label_visibility="collapsed")
-                if budget_file:
-                    with st.spinner("Syncing targets..."):
-                        target_path = project_path("files", "Budget3.csv")
-                        with open(target_path, "wb") as f:
-                            f.write(budget_file.getbuffer())
-                        letter_service.budget_repo.sync_if_needed()
-                        st.success("Regional targets updated successfully!")
-                        st.rerun()
-
-        st.divider()
-        h_title_col, h_action_col = st.columns([3, 1])
-        with h_title_col:
-            st.markdown("##### 📜 Ingestion History")
-        
-        # Show last 10 archived MIS files for bulk management
-        mis_archive = project_path("data", "mis", "archive")
-        if mis_archive.exists():
-            history_files = sorted(list(mis_archive.glob("*.xlsx")), key=lambda x: x.stat().st_mtime, reverse=True)[:10]
-            if history_files:
-                to_delete = []
-                
-                with h_action_col:
-                    # Multi-action buttons
-                    if st.button("🗑️ Bulk Delete", use_container_width=True, type="secondary", help="Delete selected files"):
-                        st.session_state["show_bulk_confirm"] = True
-                
-                # Bulk Confirmation Dialog
-                if st.session_state.get("show_bulk_confirm"):
-                    with st.container(border=True):
-                        st.warning("⚠️ Are you sure you want to delete selected data feeds?")
-                        c1, c2 = st.columns(2)
-                        if c1.button("✅ Confirm Deletion", use_container_width=True):
-                            files_to_del = st.session_state.get("mis_selected_files", [])
-                            progress_bar = st.progress(0, text="Initializing batch removal...")
-                            deleted_count = 0
-                            
-                            for i, f_name in enumerate(files_to_del):
-                                pct = (i + 1) / len(files_to_del)
-                                progress_bar.progress(
-                                    pct,
-                                    text=f"🗑️ Deleting: {f_name} ({i+1}/{len(files_to_del)}) - {int(pct*100)}%"
-                                )
-                                if service.delete_mis_file(f_name):
-                                    deleted_count += 1
-                                    
-                            progress_bar.empty()
-                            st.success(f"Successfully removed {deleted_count} data feeds.")
-                            st.session_state["show_bulk_confirm"] = False
-                            st.session_state["mis_selected_files"] = []
-                            st.rerun()
-                        if c2.button("❌ Cancel", use_container_width=True):
-                            st.session_state["show_bulk_confirm"] = False
-                            st.rerun()
-
-                # History List with Checkboxes
-                selected_files = st.session_state.get("mis_selected_files", [])
-                
-                for f in history_files:
-                    h_time = datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime("%d-%b %H:%M")
-                    h_col1, h_col2 = st.columns([0.1, 4.9])
-                    with h_col1:
-                        is_selected = st.checkbox("", key=f"chk_{f.name}", value=f.name in selected_files, label_visibility="collapsed")
-                        if is_selected and f.name not in selected_files:
-                            selected_files.append(f.name)
-                        elif not is_selected and f.name in selected_files:
-                            selected_files.remove(f.name)
-                    with h_col2:
-                        st.caption(f"✅ **{f.name}** (Ingested: {h_time})")
-                
-                st.session_state["mis_selected_files"] = selected_files
-                
-                if st.button("🧨 Clear Entire Archive", type="secondary", use_container_width=True):
-                    all_files = list(mis_archive.glob("*.xlsx"))
-                    progress_bar = st.progress(0, text="🧨 Wiping entire archive...")
-                    for i, f in enumerate(all_files):
-                        pct = (i + 1) / len(all_files)
-                        progress_bar.progress(
-                            pct, 
-                            text=f"💥 Removing: {f.name} ({i+1}/{len(all_files)}) - {int(pct*100)}%"
-                        )
-                        service.delete_mis_file(f.name)
-                    progress_bar.empty()
-                    st.success("Entire archive cleared!")
-                    st.rerun()
-            else:
-                st.write("No ingestion history available.")
-        
-        with st.expander("🛠️ Advanced Maintenance"):
-            st.markdown("##### 🧨 Targeted Data Removal")
-            st.caption("Surgically remove all records and milestones for a specific reporting date.")
-            c1, c2 = st.columns([2, 1])
-            with c1:
-                target_del_date = st.date_input("Date to Wipe", value=None, min_value=datetime.date(2024, 1, 1), key="wipe_date")
-            with c2:
-                st.write("") # Spacer
-                if st.button("🗑️ Wipe Date", use_container_width=True, type="secondary"):
-                    if target_del_date:
-                        with st.spinner(f"Wiping {target_del_date}..."):
-                            # Logic to delete by date directly
-                            with get_db_session() as session:
-                                from src.infrastructure.persistence.sqlite_models import MISRecordModel, MilestoneAchievementModel
-                                # Remove raw data
-                                r_cnt = session.query(MISRecordModel).filter(MISRecordModel.date == target_del_date).delete()
-                                # Remove milestones
-                                m_cnt = session.query(MilestoneAchievementModel).filter(MilestoneAchievementModel.date == target_del_date).delete()
-                                session.commit()
-                                st.success(f"Successfully wiped {r_cnt} records and {m_cnt} milestones for {target_del_date}.")
-                                service.load_frame.clear()
-                                service.build_snapshot.clear()
-                                st.rerun()
-                    else:
-                        st.error("Select a date.")
+        render_ingestion_portal(service, letter_service)
     
     # ─── BASE DATA LOAD ────────────────────────────────────────────────────
-    df = service.get_data()
-    if df.empty:
+    dates = service.get_available_dates()
+    if not dates:
         st.error("No MIS data found. Please use the Maintenance Hub above to upload MIS files.")
         return
+        
+    sols = service.get_available_sols()
     
     # 2. Global Filters
-    dates = sorted(df["DATE"].dt.date.unique())
-    sols = sorted(df["SOL"].dropna().astype(int).unique().tolist())
     
     # SOL to Branch Name Mapping
     repo = MasterRepository()
@@ -255,7 +251,7 @@ def render() -> None:
     
     # Advanced Performance Tracking
     with st.expander("📈 Advanced Budget Gap Analysis", expanded=True):
-        metric_to_track = st.selectbox("Select Parameter to Analyze", sorted(metric_options), index=sorted(metric_options).index("TOTAL ADVANCES") if "TOTAL ADVANCES" in metric_options else 0)
+        metric_to_track = st.selectbox("Select Parameter to Analyze", sorted(metric_options), index=sorted(metric_options).index("ADV") if "ADV" in metric_options else 0)
         perf = service.get_performance_metrics(selected_date, metric_to_track, sols=selected_sols)
         
         # Advanced Performance Tracking
@@ -325,8 +321,8 @@ def render() -> None:
             if not history.empty:
                 st.markdown("#### 📈 Dynamic Business Trend (Current FY)")
                 # Multi-line chart: Advances vs Deposits
-                trend = history.groupby("DATE", as_index=False)[["TOTAL ADVANCES", "TOTAL DEPOSITS"]].sum()
-                fig = px.line(trend, x="DATE", y=["TOTAL ADVANCES", "TOTAL DEPOSITS"], 
+                trend = history.groupby("DATE", as_index=False)[["ADV", "TOTAL DEPOSITS"]].sum()
+                fig = px.line(trend, x="DATE", y=["ADV", "TOTAL DEPOSITS"], 
                             template="plotly_dark", color_discrete_sequence=["#3b82f6", "#10b981"])
                 fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title=None)
                 st.plotly_chart(fig, use_container_width=True)
@@ -337,7 +333,7 @@ def render() -> None:
             if not frame.empty:
                 # Add Branch Name column for display
                 frame["Branch"] = frame["SOL"].map(lambda x: unit_map.get(int(x), f"SOL {x}") if pd.notnull(x) else "Unknown")
-                st.dataframe(frame[["Branch", "TOTAL ADVANCES", "TOTAL DEPOSITS", "NPA %"]].sort_values("TOTAL ADVANCES", ascending=False), 
+                st.dataframe(frame[["Branch", "ADV", "TOTAL DEPOSITS", "NPA %"]].sort_values("ADV", ascending=False), 
                              hide_index=True, use_container_width=True)
             
     with tabs[1]:
@@ -572,10 +568,8 @@ def render() -> None:
 
                     if st.button("✅ Finalize & Generate Letters", use_container_width=True):
                         with st.spinner("Saving breakthroughs and preparing letters..."):
-                            with get_db_session() as session:
-                                ms_srv = MilestoneService(session)
-                                saved_count = ms_srv.save_achievements(snapshot.milestone_breakthroughs)
-                                st.success(f"Successfully recorded {saved_count} new breakthroughs!")
+                            saved_count = service.save_milestone_achievements(snapshot.milestone_breakthroughs)
+                            st.success(f"Successfully recorded {saved_count} new breakthroughs!")
                             
                             # Generate letters and posters
                             graphic_srv = GraphicService()

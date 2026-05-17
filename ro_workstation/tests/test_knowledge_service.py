@@ -3,8 +3,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from application.use_cases.knowledge.indexing import KnowledgeIndexingService
-from core.paths import project_path
+from src.application.use_cases.knowledge.indexing import KnowledgeIndexingService
+from src.core.paths import project_path
 
 
 class KnowledgeIndexingTests(unittest.TestCase):
@@ -28,7 +28,7 @@ class KnowledgeIndexingTests(unittest.TestCase):
         fake_client.get_or_create_collection.return_value = fake_collection
         service.client = fake_client
 
-        with patch("application.use_cases.knowledge.indexing.get_embedder") as mock_embedder:
+        with patch("src.application.use_cases.knowledge.indexing.get_embedder") as mock_embedder:
             mock_embedder.return_value.encode.return_value = [[0.0] * 4] * 3
             record = service.index_saved_document(source, "CRMD", "tester")
 

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @font-face {
+            font-family: 'Segoe UI';
+            src: url('data:font/ttf;base64,{{ font_en }}');
+        }
+        @font-face {
+            font-family: 'Noto Sans Devanagari';
+            src: url('data:font/ttf;base64,{{ font_hi }}');
+        }
+        @font-face {
+            font-family: 'Latha'; /* Common Tamil font */
+            src: url('data:font/ttf;base64,{{ font_ta }}');
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .card {
+            width: 1050px;
+            height: 630px;
+            background: white;
+            font-family: 'Segoe UI', sans-serif;
+            color: #1e3a8a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            padding: 45px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        /* Front specific styles */
+        .logo-section { text-align: center; margin-bottom: 25px; }
+        .logo-section img { height: 80px; }
+
+        .name-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 25px;
+            min-height: 140px;
+        }
+
+        .name-hi, .name-en, .name-ta {
+            flex: 1;
+            padding: 0 45px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .name-hi { text-align: right; font-family: 'Noto Sans Devanagari', sans-serif; }
+        .name-ta { text-align: center; font-family: 'Latha', sans-serif; margin-top: 20px;}
+        .name-en { text-align: left; text-transform: uppercase; }
+
+        .divider-vertical { width: 3px; height: 110px; background: #1e3a8a; }
+
+        .full-name { font-size: 32px; font-weight: 700; margin: 0; line-height: 1.1; }
+        .designation { font-size: 24px; font-weight: 400; margin: 8px 0 0 0; }
+
+        .divider-horizontal { width: 90%; height: 2px; background: #1e3a8a; margin: 0 auto 25px auto; }
+
+        .address-section { display: flex; justify-content: center; margin-bottom: 30px; flex: 1; }
+        .addr-hi, .addr-en, .addr-ta { flex: 1; padding: 0 45px; font-size: 19px; line-height: 1.4; }
+        .addr-hi { text-align: right; font-family: 'Noto Sans Devanagari', sans-serif; }
+        .addr-ta { text-align: center; font-family: 'Latha', sans-serif; }
+        .addr-en { text-align: left; }
+
+        .bank-name { font-size: 32px; font-weight: 700; margin-bottom: 10px; }
+
+        .contact-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: 0 45px;
+            margin-top: auto;
+            margin-bottom: 25px;
+            font-size: 20px;
+            font-weight: 700;
+            column-gap: 50px;
+            row-gap: 12px;
+        }
+
+        .contact-item { display: flex; align-items: center; gap: 15px; white-space: nowrap; }
+        .icon { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
+
+        /* Back specific styles */
+        .back-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            background: #fff;
+        }
+
+        .back-logo { height: 160px; margin-bottom: 20px; }
+        .back-slogan { font-size: 28px; font-style: italic; color: #1e3a8a; margin-bottom: 60px; font-weight: 400; }
+        .back-info { color: #1e3a8a; }
+
+    </style>
+</head>
+<body>
+    <!-- Front Side -->
+    <div id="front" class="card">
+        <div class="container">
+            <div class="logo-section">
+                <img src="{{ logo_url }}" alt="Logo">
+            </div>
+
+            <div class="name-section">
+                <div class="name-hi">
+                    <div class="full-name">{{ name_hi }}</div>
+                    <div class="designation">{{ designation_hi }}</div>
+                </div>
+                <div class="divider-vertical"></div>
+                <div class="name-en">
+                    <div class="full-name">{{ name_en }}</div>
+                    <div class="designation">{{ designation_en }}</div>
+                </div>
+            </div>
+
+            <div class="divider-horizontal"></div>
+
+            <div class="address-section">
+                <div class="addr-hi">
+                    <div class="bank-name">इण्डियन ओवरसीज़ बैंक</div>
+                    <div>{{ address_hi | replace('\n', '<br>') }}</div>
+                </div>
+                <div class="addr-en">
+                    <div class="bank-name">Indian Overseas Bank</div>
+                    <div>{{ address_en | replace('\n', '<br>') }}</div>
+                </div>
+            </div>
+
+            <div class="contact-section">
+                <div class="contact-item">
+                    <img src="{{ phone_icon }}" class="icon">
+                    <span>{{ phone }}</span>
+                </div>
+                <div class="contact-item">
+                    <img src="{{ email_icon }}" class="icon">
+                    <span>{{ email }}</span>
+                </div>
+                <div class="contact-item">
+                    <img src="{{ mobile_icon }}" class="icon">
+                    <span>{{ mobile }}</span>
+                </div>
+                <div class="contact-item">
+                    <img src="{{ web_icon }}" class="icon">
+                    <span>{{ web }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back Side (Institutional Focus) -->
+    <div id="back" class="card">
+        <div class="back-container">
+            <img src="{{ logo_url }}" class="back-logo">
+            <div class="back-slogan">Good people to grow with</div>
+            
+            <div class="back-info">
+                <div style="font-weight: 700; margin-bottom: 5px;">Customer Care</div>
+                <div style="font-size: 28px; letter-spacing: 1px;">1800 890 4445 | 1800 425 4445</div>
+                
+                <div style="margin-top: 40px; display: flex; align-items: center; justify-content: center; gap: 30px; font-size: 24px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="background: #1e3a8a; color: white; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; font-size: 18px;">f</span>
+                        <span>@IOBIndia</span>
+                    </div>
+                    <div>www.iob.bank.in</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

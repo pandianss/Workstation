@@ -40,8 +40,8 @@ def render() -> None:
         st.markdown("### 📈 Performance Trajectory")
         from src.core.utils.financial_year import get_fy_start
         fy_start = pd.to_datetime(get_fy_start(datetime.date.today()))
-        hist = data[data["DATE"] >= fy_start].groupby("DATE")[["TOTAL DEPOSITS", "TOTAL ADVANCES"]].sum().reset_index()
-        render_chart_container(hist, "DATE", ["TOTAL DEPOSITS", "TOTAL ADVANCES"], "Regional Business Growth (Current FY)")
+        hist = data[data["DATE"] >= fy_start].groupby("DATE")[["TOTAL DEPOSITS", "ADV"]].sum().reset_index()
+        render_chart_container(hist, "DATE", ["TOTAL DEPOSITS", "ADV"], "Regional Business Growth (Current FY)")
 
     # 4. District Coverage & Network
     st.divider()

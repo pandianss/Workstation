@@ -13,12 +13,12 @@ class ProductService:
         if not self.data_path.exists():
             default_data = {"products": []}
             os.makedirs(self.data_path.parent, exist_ok=True)
-            with open(self.data_path, "w") as f:
-                json.dump(default_data, f, indent=4)
+            with open(self.data_path, "w", encoding="utf-8") as f:
+                json.dump(default_data, f, indent=4, ensure_ascii=False)
 
     def list_products(self) -> List[Dict[str, Any]]:
         try:
-            with open(self.data_path, "r") as f:
+            with open(self.data_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return data.get("products", [])
         except Exception:
@@ -27,8 +27,8 @@ class ProductService:
     def add_product(self, product: Dict[str, Any]) -> None:
         products = self.list_products()
         products.append(product)
-        with open(self.data_path, "w") as f:
-            json.dump({"products": products}, f, indent=4)
+        with open(self.data_path, "w", encoding="utf-8") as f:
+            json.dump({"products": products}, f, indent=4, ensure_ascii=False)
 
     def get_products_by_category(self, category: str) -> List[Dict[str, Any]]:
         all_p = self.list_products()
