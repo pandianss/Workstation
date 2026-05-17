@@ -144,10 +144,17 @@ def render() -> None:
         with get_db_session() as session:
             com_svc = CommunicationService(session)
             
-            # 1. Raise New Request
             with st.expander("➕ Raise New Request / Inquiry"):
                 with st.form("br_com_form"):
-                    dept_list = ["IT", "OPERATIONS", "PLANNING", "ADVANCES", "HRM", "GENERAL ADMIN"]
+                    master_service = get_master_service()
+                    depts_df = master_service.get_departments_frame()
+                    if not depts_df.empty:
+                        dept_list = depts_df[depts_df["Active"] == True]["Name (En)"].tolist()
+                        if not dept_list:
+                            dept_list = ["IT", "OPERATIONS", "PLANNING", "ADVANCES", "HRM", "GENERAL ADMIN"]
+                    else:
+                        dept_list = ["IT", "OPERATIONS", "PLANNING", "ADVANCES", "HRM", "GENERAL ADMIN"]
+                    
                     target_dept = st.selectbox("Select RO Department", dept_list)
                     subj = st.text_input("Subject")
                     msg = st.text_area("Detailed Message")
