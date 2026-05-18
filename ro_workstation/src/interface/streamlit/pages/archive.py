@@ -115,14 +115,127 @@ def render():
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
-        selection_mode="single-row",
+        selection_mode="multi-row",
         key="archive_table"
     )
 
     if selection.selection.rows:
-        idx = selection.selection.rows[0]
-        selected_doc = df.iloc[idx]
-        render_doc_manager(selected_doc, note_service, circ_service, mis_service, doc_service)
+        selected_indices = selection.selection.rows
+        
+        if len(selected_indices) > 1:
+            st.divider()
+            st.subheader(f"💼 Bulk Operations Dashboard ({len(selected_indices)} selected)")
+            
+            selected_docs = df.iloc[selected_indices]
+            with st.expander("👁️ View Selected Documents", expanded=False):
+                st.table(selected_docs[["Source", "Title", "Ref No", "Dept"]])
+                
+            b_col1, b_col2 = st.columns(2)
+            
+            if b_col1.button("🗑️ Bulk Delete Permanently", use_container_width=True, type="secondary"):
+                with st.spinner("Deleting selected documents..."):
+                    deleted_count = 0
+                    for r_idx in selected_indices:
+                        doc = df.iloc[r_idx]
+                        if doc["Source"] == "Office Note":
+                            success = note_service.delete_note(doc["ID"])
+                        elif doc["Source"] == "MIS Data Feed":
+                            success = mis_service.delete_mis_file(doc["ID"])
+                        elif doc["Source"] == "Circular":
+                            success = circ_service.delete_circular(doc["ID"])
+                        else:
+                            success = False
+                        if success:
+                            deleted_count += 1
+                    
+                    st.success(f"Successfully deleted {deleted_count} of {len(selected_indices)} documents.")
+                    st.rerun()
+            
+            import io
+            import zipfile
+            
+            zip_buffer = io.BytesIO()
+            has_pdfs = False
+            
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                for idx, r_idx in enumerate(selected_indices):
+                    doc = df.iloc[r_idx]
+                    pdf_bytes = None
+                    filename = f"Document_{idx+1}.pdf"
+                    
+                    try:
+                        if doc["Source"] == "Circular":
+                            pdf_bytes = doc_service.generate_circular_pdf(doc["RAW"])
+                            safe_ref = str(doc["Ref No"]).replace("/", "_").replace("\\", "_")
+                            filename = f"Circular_{safe_ref}.pdf"
+                            
+                        elif doc["Source"] == "Office Note":
+                            content = doc["RAW"].get("parsed_content", {})
+                            if doc["Type"] == 'HIGH_VALUE_DD':
+                                mapped_data = {
+                                    "branch_sol": content.get("branchSol"),
+                                    "applicant_name": content.get("applicantName"),
+                                    "account_no": content.get("applicantAccount"),
+                                    "kyc_status": content.get("kycCompliance", "YES"),
+                                    "issue_date": content.get("dateOfIssue"),
+                                    "beneficiary_name": content.get("beneficiaryName"),
+                                    "dd_drawn_on": content.get("ddDrawnOn"),
+                                    "amount": content.get("amount"),
+                                    "txn_id": content.get("transactionId"),
+                                    "purpose": content.get("purpose"),
+                                    "circulars": content.get("policyCirculars", []),
+                                    "recommendation": content.get("recommendation", "Approved as per guidelines."),
+                                    "ref_no": doc["Ref No"],
+                                    "note_date": content.get("noteDate")
+                                }
+                                pdf_bytes = doc_service.generate_high_value_dd_pdf(mapped_data)
+                            else:
+                                prep_name = content.get('signatorySnapshot', {}).get('preparer', {}).get('name', 'Staff')
+                                rev_list = content.get('signatorySnapshot', {}).get('reviewers', [])
+                                sigs = [s.get('name') for s in rev_list] if isinstance(rev_list, list) else []
+                                
+                                intro, obs, recs = "", "", ""
+                                if doc['Type'] == 'EXPENSE_APPROVAL':
+                                    intro = f"Proposed expenditure of ₹{content.get('proposedAmount')} for {content.get('vendorName')}."
+                                    obs = content.get('expensePurpose', '')
+                                    recs = content.get('recommendation', '')
+                                elif doc['Type'] == 'REVERSAL_CHARGES':
+                                    intro = f"Proposal for reversal of {content.get('revChargeType')} in A/c {content.get('revAccountNumber')}."
+                                    obs = content.get('revJustification', '')
+                                    recs = f"We may reverse the amount of ₹{content.get('revReversalAmount')}."
+                                else:
+                                    obs = content.get('details', '')
+                                
+                                pdf_bytes = doc_service.generate_pdf_note(
+                                    department=doc['Dept'], subject=doc['Title'],
+                                    intro_text=intro, observations=obs, recommendations=recs, 
+                                    prepared_by=prep_name, ref_no=doc['Ref No'],
+                                    date=content.get('noteDate'), signatories=sigs, is_html=True
+                                )
+                            safe_ref = str(doc["Ref No"]).replace("/", "_").replace("\\", "_")
+                            filename = f"Note_{safe_ref}.pdf"
+                            
+                        if pdf_bytes:
+                            zf.writestr(filename, pdf_bytes)
+                            has_pdfs = True
+                    except Exception as e:
+                        st.warning(f"Could not generate PDF for {doc['Title']}: {str(e)}")
+            
+            if has_pdfs:
+                b_col2.download_button(
+                    label="📥 Download Bulk PDFs (.zip)",
+                    data=zip_buffer.getvalue(),
+                    file_name=f"Bulk_Archive_{datetime.date.today().strftime('%Y%m%d')}.zip",
+                    mime="application/zip",
+                    use_container_width=True,
+                    type="primary"
+                )
+            else:
+                b_col2.info("Selected items do not support PDF generation.")
+        else:
+            idx = selected_indices[0]
+            selected_doc = df.iloc[idx]
+            render_doc_manager(selected_doc, note_service, circ_service, mis_service, doc_service)
 
 def render_doc_manager(doc, note_service, circ_service, mis_service, doc_service):
     st.divider()
@@ -182,10 +295,67 @@ def render_doc_manager(doc, note_service, circ_service, mis_service, doc_service
                 st.json(doc["RAW"])
 
     with m_col2:
-        st.markdown("#### Actions")
-        if st.button("📄 View / Regenerate PDF", use_container_width=True, type="primary"):
-            st.info("Regeneration engine warming up...")
-            # Logic here for PDF generation (similar to office_note_hub)
+        pdf_bytes = None
+        try:
+            if doc["Source"] == "Circular":
+                pdf_bytes = doc_service.generate_circular_pdf(doc["RAW"])
+            elif doc["Source"] == "Office Note":
+                content = doc["RAW"].get("parsed_content", {})
+                if doc["Type"] == 'HIGH_VALUE_DD':
+                    mapped_data = {
+                        "branch_sol": content.get("branchSol"),
+                        "applicant_name": content.get("applicantName"),
+                        "account_no": content.get("applicantAccount"),
+                        "kyc_status": content.get("kycCompliance", "YES"),
+                        "issue_date": content.get("dateOfIssue"),
+                        "beneficiary_name": content.get("beneficiaryName"),
+                        "dd_drawn_on": content.get("ddDrawnOn"),
+                        "amount": content.get("amount"),
+                        "txn_id": content.get("transactionId"),
+                        "purpose": content.get("purpose"),
+                        "circulars": content.get("policyCirculars", []),
+                        "recommendation": content.get("recommendation", "Approved as per guidelines."),
+                        "ref_no": doc["Ref No"],
+                        "note_date": content.get("noteDate")
+                    }
+                    pdf_bytes = doc_service.generate_high_value_dd_pdf(mapped_data)
+                else:
+                    prep_name = content.get('signatorySnapshot', {}).get('preparer', {}).get('name', 'Staff')
+                    rev_list = content.get('signatorySnapshot', {}).get('reviewers', [])
+                    sigs = [s.get('name') for s in rev_list] if isinstance(rev_list, list) else []
+                    
+                    intro, obs, recs = "", "", ""
+                    if doc['Type'] == 'EXPENSE_APPROVAL':
+                        intro = f"Proposed expenditure of ₹{content.get('proposedAmount')} for {content.get('vendorName')}."
+                        obs = content.get('expensePurpose', '')
+                        recs = content.get('recommendation', '')
+                    elif doc['Type'] == 'REVERSAL_CHARGES':
+                        intro = f"Proposal for reversal of {content.get('revChargeType')} in A/c {content.get('revAccountNumber')}."
+                        obs = content.get('revJustification', '')
+                        recs = f"We may reverse the amount of ₹{content.get('revReversalAmount')}."
+                    else:
+                        obs = content.get('details', '')
+                    
+                    pdf_bytes = doc_service.generate_pdf_note(
+                        department=doc['Dept'], subject=doc['Title'],
+                        intro_text=intro, observations=obs, recommendations=recs, 
+                        prepared_by=prep_name, ref_no=doc['Ref No'],
+                        date=content.get('noteDate'), signatories=sigs, is_html=True
+                    )
+        except Exception as e:
+            st.error(f"Generation error: {str(e)}")
+            
+        if pdf_bytes:
+            st.download_button(
+                label="📥 Download PDF",
+                data=pdf_bytes,
+                file_name=f"{doc['Source']}_{doc['Ref No'].replace('/', '_')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary"
+            )
+        else:
+            st.info("PDF generation not supported for this document type.")
             
         if st.button("✏️ Edit Metadata", use_container_width=True):
             st.session_state[f"edit_archive_{doc['ID']}"] = True
