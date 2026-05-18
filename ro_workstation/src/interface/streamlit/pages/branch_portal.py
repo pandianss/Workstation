@@ -17,6 +17,37 @@ def render() -> None:
     branch_name = st.session_state.get("branch_name", "Dindigul Main")
     
     render_action_bar(f"Branch Dashboard: {branch_name}", ["Branch: "+str(sol_id), "Real-time", "Connected"])
+
+    # Campaign running strip ticker
+    from src.application.services.campaign_service import CampaignService
+    try:
+        campaign_service = CampaignService()
+        active_campaigns = [c for c in campaign_service.get_all() if c.get("status") == "Active"]
+    except Exception:
+        active_campaigns = []
+
+    if active_campaigns:
+        ticker_items = []
+        for c in active_campaigns:
+            metric = c.get("target_metric", "Business")
+            val = c.get("target_value", 0)
+            val_str = f"₹ {val:.2f} Cr" if val < 100 else f"₹ {val/100000:.2f} Lakhs" if val < 10000000 else f"₹ {val/10000000:.2f} Cr"
+            ticker_items.append(
+                f"🚀 <strong>CAMPAIGN ACTIVE:</strong> <span style='color:#fbbf24;'>{c.get('name')}</span> "
+                f"({metric} Target: {val_str}) "
+                f"| Valid: {c.get('start_date')} to {c.get('end_date')}"
+            )
+        ticker_content = " &nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;&nbsp; ".join(ticker_items)
+    else:
+        ticker_content = "📢 <strong>RO COCKPIT:</strong> Drive CASA & Retail Advances | Enforce Trilingual Compliance across all units | Customer-First Excellence"
+
+    st.markdown(f"""
+        <div style="background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 10px; border-radius: 8px; font-weight: bold; margin-bottom: 20px; overflow: hidden; white-space: nowrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <marquee scrollamount="6" behavior="scroll" direction="left" onmouseover="this.stop();" onmouseout="this.start();" style="cursor: pointer;">
+                {ticker_content}
+            </marquee>
+        </div>
+    """, unsafe_allow_html=True)
     
     tabs = st.tabs(["🏠 Overview", "📢 Circulars", "🚀 Campaigns", "🏗️ Wizards", "💬 RO Coordination", "🛍️ Products"])
 
