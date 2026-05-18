@@ -79,7 +79,7 @@ def render() -> None:
                         </div>
                     """)
                     st.components.v1.html(card_html, height=200)
-                               c1, c2, c3, c4 = st.columns(4)
+                    c1, c2, c3, c4 = st.columns(4)
                     if c1.button("🎨 Poster", key=f"post_{i}"):
                         with st.spinner("Rendering..."):
                             html = doc_service.generate_campaign_poster_html(i)
