@@ -75,3 +75,12 @@ class CircularService:
             if isinstance(c, dict) and (c.get('id') == circ_id or c.get('number') == circ_id or c.get('ref_no') == circ_id):
                 return c
         return None
+
+    def delete_circular(self, circ_id: str) -> bool:
+        circulars = self._load_data()
+        initial_count = len(circulars)
+        circulars = [c for c in circulars if isinstance(c, dict) and c.get('id') != circ_id and c.get('number') != circ_id and c.get('ref_no') != circ_id]
+        if len(circulars) < initial_count:
+            self._save_data(circulars)
+            return True
+        return False

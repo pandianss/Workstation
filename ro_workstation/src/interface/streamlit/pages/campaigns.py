@@ -79,8 +79,7 @@ def render() -> None:
                         </div>
                     """)
                     st.components.v1.html(card_html, height=200)
-                    
-                    c1, c2, c3 = st.columns(3)
+                               c1, c2, c3, c4 = st.columns(4)
                     if c1.button("🎨 Poster", key=f"post_{i}"):
                         with st.spinner("Rendering..."):
                             html = doc_service.generate_campaign_poster_html(i)
@@ -100,12 +99,48 @@ def render() -> None:
                     if c3.button("⚙️ Edit", key=f"edit_{i}"):
                         st.session_state[f"edit_camp_{i}"] = True
 
+                    if c4.button("🗑️ Delete", key=f"del_{i}", type="secondary"):
+                        service.delete_campaign(i)
+                        st.rerun()
+ 
                     if st.session_state.get(f"edit_camp_{i}"):
                         with st.form(f"f_edit_{i}"):
                             new_name = st.text_input("Name", value=c['name'])
                             new_target = st.number_input("Target (Cr)", value=float(c['target_value']))
-                            if st.form_submit_button("Save"):
-                                service.update_campaign(i, {"name": new_name, "target_value": new_target})
+                            
+                            kpis_list = [
+                                "CASA", "GOLD", "RETAIL", "MSME", "AGRI", "DIGITAL", "JEWEL LOAN",
+                                "INSURANCE", "MUTUAL FUNDS", "SOCIAL SECURITY", "CREDIT CARDS"
+                            ]
+                            current_kpi = c.get('target_metric', 'CASA').upper()
+                            kpi_idx = kpis_list.index(current_kpi) if current_kpi in kpis_list else 0
+                            new_metric = st.selectbox("KPI", kpis_list, index=kpi_idx)
+                            
+                            try:
+                                d_start = datetime.datetime.strptime(c.get('start_date', '2026-05-01'), "%Y-%m-%d").date()
+                            except:
+                                d_start = datetime.date.today()
+                                
+                            try:
+                                d_end = datetime.datetime.strptime(c.get('end_date', '2026-06-30'), "%Y-%m-%d").date()
+                            except:
+                                d_end = datetime.date.today() + datetime.timedelta(days=30)
+                                
+                            new_start = st.date_input("Start Date", value=d_start)
+                            new_end = st.date_input("End Date", value=d_end)
+                            
+                            c_edit1, c_edit2 = st.columns(2)
+                            if c_edit1.form_submit_button("Save"):
+                                service.update_campaign(i, {
+                                    "name": new_name, 
+                                    "target_value": new_target,
+                                    "target_metric": new_metric,
+                                    "start_date": str(new_start),
+                                    "end_date": str(new_end)
+                                })
+                                del st.session_state[f"edit_camp_{i}"]
+                                st.rerun()
+                            if c_edit2.form_submit_button("Cancel"):
                                 del st.session_state[f"edit_camp_{i}"]
                                 st.rerun()
 

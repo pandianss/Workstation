@@ -128,6 +128,44 @@ def render_doc_manager(doc, note_service, circ_service, mis_service, doc_service
     st.divider()
     st.subheader(f"🛠️ Manager: {doc['Title']}")
     
+    # Check if edit mode is active
+    edit_key = f"edit_archive_{doc['ID']}"
+    if st.session_state.get(edit_key):
+        with st.form(f"form_edit_archive_{doc['ID']}", border=True):
+            st.markdown("### ✏️ Edit Document Metadata")
+            new_title = st.text_input("Title / Subject", value=doc["Title"])
+            new_ref = st.text_input("Reference Number", value=doc["Ref No"])
+            new_dept = st.text_input("Department", value=doc["Dept"])
+            
+            c1, c2 = st.columns(2)
+            if c1.form_submit_button("💾 Save Changes"):
+                if doc["Source"] == "Circular":
+                    circ_data = doc["RAW"]
+                    circ_data["subject"] = new_title
+                    circ_data["number"] = new_ref
+                    circ_data["ref_no"] = new_ref
+                    circ_data["dept"] = new_dept
+                    circ_service.save_circular(circ_data)
+                    st.success("Circular metadata updated successfully!")
+                elif doc["Source"] == "Office Note":
+                    df_notes = pd.read_csv(note_service.csv_path)
+                    note_row = df_notes[df_notes["id"] == doc["ID"]].iloc[0].to_dict()
+                    parsed = json.loads(note_row["contentJson"]) if isinstance(note_row["contentJson"], str) else {}
+                    parsed["deptName"] = new_dept
+                    note_row["titleEn"] = new_title
+                    note_row["referenceNo"] = new_ref
+                    note_row["contentJson"] = json.dumps(parsed)
+                    note_service.save_note(note_row)
+                    st.success("Office Note metadata updated successfully!")
+                
+                del st.session_state[edit_key]
+                st.rerun()
+                
+            if c2.form_submit_button("❌ Cancel"):
+                del st.session_state[edit_key]
+                st.rerun()
+        return
+
     m_col1, m_col2 = st.columns([2, 1])
     
     with m_col1:
@@ -157,8 +195,9 @@ def render_doc_manager(doc, note_service, circ_service, mis_service, doc_service
                     success = note_service.delete_note(doc["ID"])
                 elif doc["Source"] == "MIS Data Feed":
                     success = mis_service.delete_mis_file(doc["ID"])
+                elif doc["Source"] == "Circular":
+                    success = circ_service.delete_circular(doc["ID"])
                 else:
-                    # Implement circular delete if needed
                     success = False
                 
                 if success:
