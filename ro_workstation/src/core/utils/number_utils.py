@@ -68,3 +68,28 @@ def format_indian_currency(val: float, suffix: str = "") -> str:
     if suffix:
         formatted = f"{formatted} {suffix}"
     return formatted
+
+def format_campaign_target(value: float, metric: str) -> str:
+    """Format target value dynamically based on unit size and metric type."""
+    try:
+        val = float(value)
+    except:
+        return str(value)
+        
+    currency_metrics = ["CASA", "GOLD", "RETAIL", "MSME", "AGRI", "JEWEL LOAN", "INSURANCE", "MUTUAL FUNDS"]
+    if metric.upper() in currency_metrics:
+        if val >= 10000000: # 1 Crore
+            return f"₹ {format_indian_number(val / 10000000, decimals=2)} Cr"
+        elif val >= 100000: # 1 Lakh
+            return f"₹ {format_indian_number(val / 100000, decimals=2)} Lakhs"
+        elif val >= 1000: # 1 Thousand
+            return f"₹ {format_indian_number(val / 1000, decimals=2)} K"
+        else:
+            return f"₹ {format_indian_number(val, decimals=2)}"
+    else:
+        if val >= 1000000:
+            return f"{format_indian_number(val / 1000000, decimals=1)}M Units"
+        elif val >= 1000:
+            return f"{format_indian_number(val / 1000, decimals=1)}K Units"
+        else:
+            return f"{format_indian_number(val, decimals=0)} Units"

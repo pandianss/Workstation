@@ -31,7 +31,8 @@ def render() -> None:
         for c in active_campaigns:
             metric = c.get("target_metric", "Business")
             val = c.get("target_value", 0)
-            val_str = f"₹ {val:.2f} Cr" if val < 100 else f"₹ {val/100000:.2f} Lakhs" if val < 10000000 else f"₹ {val/10000000:.2f} Cr"
+            from src.core.utils.number_utils import format_campaign_target
+            val_str = format_campaign_target(val, metric)
             ticker_items.append(
                 f"🚀 <strong>CAMPAIGN ACTIVE:</strong> <span style='color:#fbbf24;'>{c.get('name')}</span> "
                 f"({metric} Target: {val_str}) "

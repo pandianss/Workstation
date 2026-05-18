@@ -51,6 +51,9 @@ def render() -> None:
                     urgency_color = "#ef4444" if days_left < 7 else "#3b82f6"
                     metric_icon = get_metric_icon(c['target_metric'])
                     
+                    from src.core.utils.number_utils import format_campaign_target
+                    target_formatted = format_campaign_target(c['target_value'], c['target_metric'])
+                    
                     card_html = textwrap.dedent(f"""
                         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -65,7 +68,7 @@ def render() -> None:
                             <h3 style="margin: 0; font-size: 1.4rem; font-weight: 800; color: #1e293b;">{c['name']}</h3>
                             <div style="margin-top: 20px;">
                                 <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
-                                    <span style="color: #64748b;">Target: {c['target_value']} Cr</span>
+                                    <span style="color: #64748b;">Target: {target_formatted}</span>
                                     <span style="font-weight: 700; color: #1e293b;">65%</span>
                                 </div>
                                 <div style="width: 100%; height: 8px; background: #f1f5f9; border-radius: 100px; overflow: hidden;">
@@ -173,37 +176,56 @@ def render() -> None:
         branches = repo.get_by_category("UNIT")
         branches = sorted(branches, key=lambda x: x.name_en)
 
-        with st.form("launch_campaign", border=True):
+        with st.container(border=True):
             name = st.text_input("Mission Name", placeholder="e.g., Gold Loan Carnival June 2026")
             col1, col2 = st.columns(2)
             start = col1.date_input("Start Date")
             end = col2.date_input("End Date")
             
-            m1, m2 = st.columns([2, 1])
+            m1, m2, m3 = st.columns([2, 1, 1])
             metric = m1.selectbox("Key Performance Indicator (KPI)", [
                 "CASA", "GOLD", "RETAIL", "MSME", "AGRI", "DIGITAL", "JEWEL LOAN",
                 "INSURANCE", "MUTUAL FUNDS", "SOCIAL SECURITY", "CREDIT CARDS"
             ])
-            total_target = m2.number_input("Regional Target (Cr)", min_value=0.0, format="%.2f")
+            target_unit = m2.selectbox("Target Unit", ["Actual Count / Value", "Lakhs (₹)", "Crores (₹)"], index=2)
+            
+            unit_label = "Cr" if target_unit == "Crores (₹)" else "Lakhs" if target_unit == "Lakhs (₹)" else "Units"
+            
+            # Default values for inputs based on unit
+            def_val = 1.0 if target_unit == "Crores (₹)" else 100.0 if target_unit == "Lakhs (₹)" else 10000.0
+            total_target_input = m3.number_input(f"Regional Target ({unit_label})", min_value=0.0, value=def_val, format="%.2f")
+            
+            # Convert entered values to Actual Raw Value
+            multiplier = 10000000.0 if target_unit == "Crores (₹)" else 100000.0 if target_unit == "Lakhs (₹)" else 1.0
+            total_target = total_target_input * multiplier
             
             st.markdown("---")
             st.markdown("#### 🏛️ Branch Target Allocation")
             st.caption("Branch targets can be set as 'Stretch Goals' that exceed the overall regional benchmark.")
             
-            # Using selectbox for better state reliability
             alloc_mode = st.selectbox("Allocation Mode", 
                 ["Absolute by Category", "Weighted (by Population)", "Equal Distribution"],
                 index=0
             )
             
             branch_targets = {}
+            from src.core.utils.number_utils import format_campaign_target
             
             if alloc_mode == "Absolute by Category":
-                st.markdown("##### Set Absolute Targets by Category (Cr)")
+                st.markdown(f"##### Set Absolute Targets by Category ({unit_label})")
                 c1, c2, c3 = st.columns(3)
-                t_urban = c1.number_input("URBAN", value=1.0, min_value=0.0, format="%.2f", key="abs_u")
-                t_semi = c2.number_input("SEMI URBAN", value=0.5, min_value=0.0, format="%.2f", key="abs_s")
-                t_rural = c3.number_input("RURAL", value=0.2, min_value=0.0, format="%.2f", key="abs_r")
+                
+                def_u = 1.0 if target_unit == "Crores (₹)" else 100.0 if target_unit == "Lakhs (₹)" else 10000.0
+                def_s = 0.5 if target_unit == "Crores (₹)" else 50.0 if target_unit == "Lakhs (₹)" else 5000.0
+                def_r = 0.2 if target_unit == "Crores (₹)" else 20.0 if target_unit == "Lakhs (₹)" else 2000.0
+                
+                t_urban_in = c1.number_input("URBAN", value=def_u, min_value=0.0, format="%.2f", key="abs_u")
+                t_semi_in = c2.number_input("SEMI URBAN", value=def_s, min_value=0.0, format="%.2f", key="abs_s")
+                t_rural_in = c3.number_input("RURAL", value=def_r, min_value=0.0, format="%.2f", key="abs_r")
+                
+                t_urban = t_urban_in * multiplier
+                t_semi = t_semi_in * multiplier
+                t_rural = t_rural_in * multiplier
                 
                 for b in branches:
                     group = (b.metadata or {}).get("populationGroup", "RURAL").upper()
@@ -213,7 +235,7 @@ def render() -> None:
                     branch_targets[b.code] = val
                 
                 total_abs = sum(branch_targets.values())
-                st.success(f"Absolute allocation: **{total_abs:.2f} Cr** across all branches.")
+                st.success(f"Absolute allocation: **{format_campaign_target(total_abs, metric)}** across all branches.")
 
             elif alloc_mode == "Weighted (by Population)":
                 stretch_factor = st.slider("Stretch Factor", 1.0, 3.0, 1.2, key="stretch_w")
@@ -221,7 +243,7 @@ def render() -> None:
                 weights = {"METRO": 2.0, "URBAN": 1.5, "SEMI URBAN": 1.0, "RURAL": 0.7}
                 total_weight = sum(weights.get((b.metadata or {}).get("populationGroup", "RURAL").upper(), 1.0) for b in branches)
                 base_unit = adjusted_target / total_weight if total_weight > 0 else 0
-                st.info(f"Weighted stretch allocation complete. (Total: {adjusted_target:.2f} Cr)")
+                st.info(f"Weighted stretch allocation complete. (Total: {format_campaign_target(adjusted_target, metric)})")
                 for b in branches:
                     group = (b.metadata or {}).get("populationGroup", "RURAL").upper()
                     branch_targets[b.code] = base_unit * weights.get(group, 1.0)
@@ -230,10 +252,10 @@ def render() -> None:
                 stretch_factor = st.slider("Stretch Factor", 1.0, 3.0, 1.2, key="stretch_e")
                 adjusted_target = total_target * stretch_factor
                 avg = adjusted_target / len(branches) if branches else 0
-                st.info(f"Each branch will be assigned **{avg:.4f} Cr** (Total: {adjusted_target:.2f} Cr)")
+                st.info(f"Each branch will be assigned **{format_campaign_target(avg, metric)}** (Total: {format_campaign_target(adjusted_target, metric)})")
                 branch_targets = {b.code: avg for b in branches}
 
-            if st.form_submit_button("🚀 LAUNCH STRATEGIC MISSION", use_container_width=True):
+            if st.button("🚀 LAUNCH STRATEGIC MISSION", use_container_width=True, type="primary"):
                 if not name:
                     st.error("Mission Name is mandatory.")
                 elif total_target <= 0:
