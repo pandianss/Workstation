@@ -61,14 +61,14 @@ def render():
     # Process Circulars
     for c in circs:
         unified_data.append({
-            "ID": c.get("id"),
+            "ID": c.get("id") or c.get("number") or c.get("ref_no"),
             "Source": "Circular",
             "Type": "CIRCULAR",
-            "Title": c.get("subject"),
-            "Ref No": c.get("number") or c.get("ref_no"),
+            "Title": c.get("subject") or c.get("title") or "Unnamed Circular",
+            "Ref No": c.get("number") or c.get("ref_no") or "N/A",
             "Status": "PUBLISHED",
             "Date": c.get("created_at") or c.get("date"),
-            "Dept": c.get("dept"),
+            "Dept": c.get("dept") or c.get("category") or "General",
             "RAW": c
         })
 
@@ -142,9 +142,11 @@ def render_doc_manager(doc, note_service, circ_service, mis_service, doc_service
                 if doc["Source"] == "Circular":
                     circ_data = doc["RAW"]
                     circ_data["subject"] = new_title
+                    circ_data["title"] = new_title
                     circ_data["number"] = new_ref
                     circ_data["ref_no"] = new_ref
                     circ_data["dept"] = new_dept
+                    circ_data["category"] = new_dept
                     circ_service.save_circular(circ_data)
                     st.success("Circular metadata updated successfully!")
                 elif doc["Source"] == "Office Note":
