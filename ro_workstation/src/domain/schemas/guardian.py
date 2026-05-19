@@ -11,3 +11,6 @@ class GuardianFollowUp(BaseModel):
     go_username: str
     sol: str
     details: str
+    category: str = "Other"
+    status: str = "PENDING_BRANCH"
+    priority: str = "P3"

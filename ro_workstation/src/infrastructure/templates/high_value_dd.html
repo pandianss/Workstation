@@ -27,7 +27,11 @@
         </tr>
         <tr style="background: #f8fafc;">
             <th style="padding: 12px; border: 1px solid #e2e8f0; text-align: left;">KYC Compliance</th>
-            <td style="padding: 12px; border: 1px solid #e2e8f0; font-weight: bold; color: {{ '#059669' if kyc_status == 'YES' else '#dc2626' }};">
+            {% if kyc_status == 'YES' %}
+            <td style="padding: 12px; border: 1px solid #e2e8f0; font-weight: bold; color: #059669;">
+            {% else %}
+            <td style="padding: 12px; border: 1px solid #e2e8f0; font-weight: bold; color: #dc2626;">
+            {% endif %}
                 {{ kyc_status }}
             </td>
         </tr>
@@ -74,17 +78,17 @@
         <div style="text-align: center;">
             <div style="border-top: 1px solid #000; width: 150px; margin: 0 auto 5px;"></div>
             <div style="font-size: 12px; font-weight: 900;">Initiator</div>
-            <div style="font-size: 10px; color: #666;">Assistant Manager, GAD</div>
+            <div style="font-size: 10px; color: #666;">{{ sig_init | default("Assistant Manager, GAD") }}</div>
         </div>
         <div style="text-align: center;">
             <div style="border-top: 1px solid #000; width: 150px; margin: 0 auto 5px;"></div>
             <div style="font-size: 12px; font-weight: 900;">Recommending Authority</div>
-            <div style="font-size: 10px; color: #666;">Chief Manager, GAD</div>
+            <div style="font-size: 10px; color: #666;">{{ sig_rec | default("Chief Manager, GAD") }}</div>
         </div>
         <div style="text-align: center;">
             <div style="border-top: 1px solid #000; width: 150px; margin: 0 auto 5px;"></div>
             <div style="font-size: 12px; font-weight: 900;">Approving Authority</div>
-            <div style="font-size: 10px; color: #666;">Regional Manager</div>
+            <div style="font-size: 10px; color: #666;">{{ sig_app | default("Regional Manager") }}</div>
         </div>
     </div>
 </div>

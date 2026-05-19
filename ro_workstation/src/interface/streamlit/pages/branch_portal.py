@@ -50,7 +50,9 @@ def render() -> None:
         </div>
     """, unsafe_allow_html=True)
     
-    tabs = st.tabs(["🏠 Overview", "📢 Circulars", "🚀 Campaigns", "🏗️ Wizards", "💬 RO Coordination", "🛍️ Products"])
+    tabs = st.tabs(["🏠 Overview", "👥 Org Chart", "📢 Circulars", "🚀 Campaigns", "🏗️ Wizards", "💬 RO Coordination", "🛍️ Products"])
+
+    master_service = get_master_service()
 
     # --- TAB: OVERVIEW ---
     with tabs[0]:
@@ -83,8 +85,13 @@ def render() -> None:
             else:
                 st.warning(f"No MIS data found for SOL {sol_id}.")
 
-    # --- TAB: CIRCULARS ---
+    # --- TAB: ORG CHART ---
     with tabs[1]:
+        from src.interface.streamlit.components.org_chart import render_org_chart
+        render_org_chart(master_service)
+
+    # --- TAB: CIRCULARS ---
+    with tabs[2]:
         circ_service = get_circular_service()
         doc_service = get_doc_service_v4()
         all_circs = circ_service.get_all()
@@ -104,7 +111,7 @@ def render() -> None:
                         c2.download_button("📥 Download", data=st.session_state[f"br_pdf_{i}"], file_name=f"Circular_{i}.pdf", key=f"br_dl_{i}")
 
     # --- TAB: CAMPAIGNS ---
-    with tabs[2]:
+    with tabs[3]:
         from src.application.services.campaign_service import CampaignService
         camp_service = CampaignService()
         campaigns = camp_service.get_all()
@@ -132,7 +139,7 @@ def render() -> None:
                 st.caption(f"✅ {c['name']} - Target: {c['target_value']} Cr (Finished: {c['end_date']})")
 
     # --- TAB: WIZARDS ---
-    with tabs[3]:
+    with tabs[4]:
         st.markdown("### 🛠️ Approved Branch Wizards")
         col1, col2 = st.columns(2)
         
@@ -169,7 +176,7 @@ def render() -> None:
             render_office_note_tab(doc_service, get_master_service)
 
     # --- TAB: COMS (RO COORDINATION) ---
-    with tabs[4]:
+    with tabs[5]:
         st.markdown("### 💬 Regional Office Coordination")
         st.caption("Communicate requests directly to Regional Office departments.")
         
@@ -181,7 +188,6 @@ def render() -> None:
             
             with st.expander("➕ Raise New Request / Inquiry"):
                 with st.form("br_com_form"):
-                    master_service = get_master_service()
                     depts_df = master_service.get_departments_frame()
                     if not depts_df.empty:
                         dept_list = depts_df[depts_df["Active"] == True]["Name (En)"].tolist()
@@ -232,7 +238,7 @@ def render() -> None:
                             """, unsafe_allow_html=True)
 
     # --- TAB: PRODUCTS ---
-    with tabs[5]:
+    with tabs[6]:
         st.markdown("### 🛍️ Product Catalog")
         products = [
             {"name": "Home Loan Plus", "cat": "Retail", "desc": "Reduced ROI for Senior Citizens.", "icon": "🏠"},

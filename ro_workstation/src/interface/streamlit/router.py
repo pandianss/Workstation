@@ -28,9 +28,12 @@ PAGE_REGISTRY = {
     "Office Note Hub": "src.interface.streamlit.pages.office_note_hub",
     "Visiting Card Wizard": "src.interface.streamlit.pages.visiting_card_wizard",
     "Central Archive": "src.interface.streamlit.pages.archive",
+    "Account Performance": "src.interface.streamlit.pages.account_performance",
 }
 
 
 def render_page(page_name: str) -> None:
     module = import_module(PAGE_REGISTRY[page_name])
     module.render()
+
+# Trigger hot-reload cache clear on change 8

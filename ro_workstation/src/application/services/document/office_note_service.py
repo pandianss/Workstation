@@ -67,6 +67,28 @@ class OfficeNoteService:
             df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
 
         df.to_csv(self.csv_path, index=False)
+
+        # Sync to Wizard Submissions so it shows up in Unified Master Archive
+        try:
+            from src.application.services.wizard_service import WizardService
+            wiz_svc = WizardService()
+            w_type = note_data.get('type', 'CUSTOM').lower()
+            if w_type == 'custom':
+                w_type = 'office_note'
+            
+            content = note_data.get('parsed_content', {})
+            prep_name = content.get('signatorySnapshot', {}).get('preparer', {}).get('name', note_data.get('preparerId', 'Staff'))
+            
+            wiz_svc.save_submission(
+                wizard_type=w_type,
+                submitted_by=prep_name,
+                content=content,
+                subject=note_data.get('titleEn', 'Office Note'),
+                ref=note_data.get('referenceNo')
+            )
+        except Exception:
+            pass
+
         return note_data
 
     def delete_note(self, note_id: str):
@@ -81,6 +103,20 @@ class OfficeNoteService:
         # Delete
         df = df[df['id'] != note_id]
         df.to_csv(self.csv_path, index=False)
+
+        # Delete from Wizard Submissions so the Unified Master Archive is kept in sync
+        try:
+            from src.infrastructure.persistence.database import get_db_session
+            from src.infrastructure.persistence.sqlite_models import WizardSubmissionModel
+            with get_db_session() as session:
+                sub = session.query(WizardSubmissionModel).filter(
+                    WizardSubmissionModel.reference_no == ref
+                ).first()
+                if sub:
+                    session.delete(sub)
+                    session.commit()
+        except Exception:
+            pass
         
         # Trigger re-sequencing if it follows the RO/DEPT/YEAR/MONTH/SEQ pattern
         if ref and ref.startswith("RO/"):
@@ -115,6 +151,7 @@ class OfficeNoteService:
             new_ref = f"{pattern}{new_seq}"
             
             if row['referenceNo'] != new_ref:
+                old_ref = row['referenceNo']
                 df.at[idx, 'referenceNo'] = new_ref
                 # Also update inside JSON if possible
                 try:
@@ -125,6 +162,20 @@ class OfficeNoteService:
                             content[k] = new_ref
                     df.at[idx, 'contentJson'] = json.dumps(content)
                 except:
+                    pass
+
+                # Update in SQLite WizardSubmissions
+                try:
+                    from src.infrastructure.persistence.database import get_db_session
+                    from src.infrastructure.persistence.sqlite_models import WizardSubmissionModel
+                    with get_db_session() as session:
+                        sub = session.query(WizardSubmissionModel).filter(
+                            WizardSubmissionModel.reference_no == old_ref
+                        ).first()
+                        if sub:
+                            sub.reference_no = new_ref
+                            session.commit()
+                except Exception:
                     pass
         
         df.to_csv(self.csv_path, index=False)

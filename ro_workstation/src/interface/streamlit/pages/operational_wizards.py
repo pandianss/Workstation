@@ -45,6 +45,7 @@ def render_unified_gallery() -> None:
     categories = {
         "Official Correspondence": [
             {"id": "circular_drafter", "title": "Circular Drafter", "desc": "Draft and issue official regional circulars with auto-indexing.", "icon": "📜"},
+            {"id": "office_note", "title": "Office Note Wizard", "desc": "Draft, format, and generate official trilingual office notes.", "icon": "📝"},
             {"id": "letter_generator", "title": "Letter Generator", "desc": "Draft and generate general official letters.", "icon": "✉️", "nav_to_page": True},
             {"id": "office_note_hub", "title": "Office Note Hub", "desc": "Manage and track office notes.", "icon": "📝", "nav_to_page": True},
             {"id": "mail_merge", "title": "Bulk Mail Merge", "desc": "Personalized documents from Excel data.", "icon": "📬"},

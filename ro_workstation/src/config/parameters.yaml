@@ -17,10 +17,10 @@ organization:
   bank_name:
     en: "Indian Overseas Bank"
     hi: "इण्डियन ओवरसीज़ बैंक"
-    ta: "இண்டியன் ஓவர்சீஸ் வங்கி"
+    ta: "இந்தியன் ஓவர்சீஸ் வங்கி"
   office_name:
     en: "Regional Office, Dindigul"
-    hi: "क्षेत्रीय कार्यालय, डिண்டிகுல்"
+    hi: "क्षेत्रीय कार्यालय, दिण्डुक्कल"
     ta: "மண்டல அலுவலகம், திண்டுக்கல்"
   financial_year_start: "04-01"
 

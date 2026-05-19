@@ -231,23 +231,46 @@ class MasterSyncService:
         for _, row in df.iterrows():
             code = str(row["code"]).zfill(4)
             incoming_codes.add(code)
+            raw_pin = str(row.get("pincode", row.get("Pincode", ""))).strip()
+            if raw_pin.endswith(".0"):
+                raw_pin = raw_pin[:-2]
+            elif raw_pin.lower() in ["nan", "none"]:
+                raw_pin = ""
+                
             meta = {
                 "type": str(row.get("type", "")),
                 "district": str(row.get("district", row.get("District", ""))),
                 "populationGroup": str(row.get("populationGroup", "")),
                 "address1": str(row.get("Address1", row.get("address1", ""))),
                 "address2": str(row.get("Address2", row.get("address2", ""))),
-                "pincode": str(row.get("pincode", row.get("Pincode", ""))),
+                "pincode": raw_pin,
                 "address": str(row.get("address", "")),
+                "address_hi": str(row.get("addressHi", "")),
+                "address_ta": str(row.get("addressTa", "")),
+                "address1_en": str(row.get("address1_en", "")),
+                "address2_en": str(row.get("address2_en", "")),
+                "address3_en": str(row.get("address3_en", "")),
+                "address1_hi": str(row.get("address1_hi", "")),
+                "address2_hi": str(row.get("address2_hi", "")),
+                "address3_hi": str(row.get("address3_hi", "")),
+                "address1_ta": str(row.get("address1_ta", "")),
+                "address2_ta": str(row.get("address2_ta", "")),
+                "address3_ta": str(row.get("address3_ta", "")),
                 "size": str(row.get("size", "MEDIUM")),
                 "openDate": str(row.get("openDate", ""))
             }
             if pd.notna(row.get("headUserId")): meta["headUserId"] = str(row["headUserId"])
             if pd.notna(row.get("secondLineUserId")): meta["secondLineUserId"] = str(row["secondLineUserId"])
             
+            name_en = str(row.get("nameEn", ""))
+            name_hi = str(row.get("nameHi", ""))
+            name_ta = str(row.get("nameTa", ""))
+            
             if code in db_units:
                 unit = db_units[code]
-                unit.name_en = str(row["nameEn"])
+                unit.name_en = name_en
+                unit.name_hi = name_hi
+                unit.name_local = name_ta
                 old_meta = unit.metadata or {}
                 old_meta.update(meta)
                 unit.metadata = old_meta
@@ -255,7 +278,8 @@ class MasterSyncService:
                 to_save.append(unit)
             else:
                 new_unit = MasterRecord(
-                    category="UNIT", code=code, name_en=str(row["nameEn"]),
+                    category="UNIT", code=code, name_en=name_en,
+                    name_hi=name_hi, name_local=name_ta,
                     is_active=True, metadata=meta
                 )
                 to_save.append(new_unit)

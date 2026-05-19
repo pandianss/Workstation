@@ -31,12 +31,25 @@ def render_filter_panel(title: str, caption: str) -> None:
 
 
 def render_action_bar(title: str, actions: list[str]) -> None:
+    import base64
+    import os
+    logo_html = ""
+    logo_path = "src/assets/2026logo_min.svg"
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode("utf-8")
+            logo_html = f'<img src="data:image/svg+xml;base64,{encoded}" style="height: 35px; margin-right: 15px; vertical-align: middle;" />'
+        except Exception:
+            pass
+
     items = "".join([f"<span class='status-pill status-low' style='margin-left: 8px; background: rgba(59, 130, 246, 0.1); color: #60a5fa;'>{action}</span>" for action in actions])
     st.markdown(
         f"""
-        <div class="top-bar-container">
-            <div style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; color: #f8fafc;">
-                {title}
+        <div class="top-bar-container" style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; color: #f8fafc;">
+                {logo_html}
+                <span>{title}</span>
             </div>
             <div style="display: flex; align-items: center;">
                 {items}

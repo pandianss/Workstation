@@ -114,8 +114,17 @@ class BudgetRepository:
         
         session = self.session_factory()
         try:
+            # Exclude Regional Office SOL (3933) to prevent double counting
+            region_code = self.registry.get_org_info().get("region_code")
+            try:
+                ro_sol = int(region_code) if region_code else 3933
+            except ValueError:
+                ro_sol = 3933
+
+            sols_filtered = [s for s in sols if s != ro_sol]
+
             query = session.query(BudgetModel).filter(
-                BudgetModel.sol.in_(sols),
+                BudgetModel.sol.in_(sols_filtered),
                 BudgetModel.date >= prev_fy_end,
                 BudgetModel.date < fy_end
             )
@@ -154,10 +163,20 @@ class BudgetRepository:
         
         session = self.session_factory()
         try:
+            # Exclude Regional Office SOL (3933) to prevent double counting
+            region_code = self.registry.get_org_info().get("region_code")
+            try:
+                ro_sol = int(region_code) if region_code else 3933
+            except ValueError:
+                ro_sol = 3933
+
             query = session.query(func.sum(BudgetModel.target)).filter(BudgetModel.parameter == excel_param)
             
             if sols:
-                query = query.filter(BudgetModel.sol.in_(sols))
+                sols_filtered = [s for s in sols if s != ro_sol]
+                query = query.filter(BudgetModel.sol.in_(sols_filtered))
+            else:
+                query = query.filter(BudgetModel.sol != ro_sol)
             
             if year_month:
                 target_dt = pd.to_datetime(year_month).date()

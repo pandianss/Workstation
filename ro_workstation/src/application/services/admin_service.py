@@ -35,8 +35,9 @@ class AdminService:
                 norm["name"] = staff.name_en
                 norm["designation"] = meta.get("designation", "Staff")
                 norm["grade"] = meta.get("grade", "N/A")
-                sol = str(meta.get("sol", "ALL"))
-                norm["assigned_branches"] = [sol] if sol != "ALL" else []
+                if "assigned_branches" not in record:
+                    sol = str(meta.get("sol", "ALL"))
+                    norm["assigned_branches"] = [sol] if sol != "ALL" else []
 
             users.append(UserAccess.model_validate(norm))
         
@@ -115,6 +116,34 @@ class AdminService:
         if updated:
             self.repo.write(users)
         return updated
+
+    def assign_branches_to_user(self, username: str, branches: list[str]) -> bool:
+        users = self.repo.read()
+        updated = False
+        for record in users:
+            if record.get("username") == username:
+                record["assigned_branches"] = branches
+                updated = True
+                break
+        if not updated:
+            staff = next((s for s in self.master_repo.get_by_category("STAFF") if s.code == username), None)
+            role = "USER"
+            dept = "ALL"
+            if staff:
+                meta = staff.metadata or {}
+                dept = meta.get("dept", "ALL")
+            record = {
+                "username": username,
+                "role": role,
+                "dept": dept,
+                "depts": [dept],
+                "assigned_branches": branches
+            }
+            users.append(record)
+            updated = True
+        
+        self.repo.write(users)
+        return True
 
     def _normalize_user(self, record: dict) -> dict:
         normalized = dict(record)

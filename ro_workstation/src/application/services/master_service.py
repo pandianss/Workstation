@@ -22,10 +22,9 @@ class MasterService:
         self.data_service = MasterDataService(self.repo)
         self.settings = get_app_settings()
 
-    @st.cache_resource(show_spinner=False, ttl=3600)
-    def get_by_category(_self, category: str) -> list[MasterRecord]:
-        """Returns all records for a given category (STAFF, UNIT, DEPT). Cached for speed."""
-        return _self.repo.get_by_category(category)
+    def get_by_category(self, category: str) -> list[MasterRecord]:
+        """Returns all records for a given category (STAFF, UNIT, DEPT). Freshly queried for real-time consistency."""
+        return self.repo.get_by_category(category)
 
     # Delegated Data Methods
     @st.cache_data(show_spinner=False, ttl=3600)
@@ -131,6 +130,167 @@ class MasterService:
             st.cache_data.clear()
         except Exception as exc:
             logger.debug("Streamlit cache clear skipped: %s", exc)
+
+    # Unit Management Logic
+    def update_unit_authorities(self, code: str, head_roll: str | None, second_roll: str | None, eff_date: str) -> bool:
+        units = self.repo.get_by_category("UNIT")
+        target_code = str(code).zfill(4)
+        unit = next((u for u in units if str(u.code).zfill(4) == target_code), None)
+        if not unit: return False
+        
+        meta = unit.metadata or {}
+        meta["headUserId"] = head_roll if head_roll else ""
+        meta["secondLineUserId"] = second_roll if second_roll else ""
+        meta["authority_from"] = eff_date
+        unit.metadata = meta
+        self.repo.save(unit)
+        
+        try:
+            self._write_back_to_branches_csv()
+        except Exception as e:
+            logger.warning(f"Failed to update branches.csv: {e}")
+            
+        self._update_sync_state()
+        return True
+
+    def update_unit_details(self, code: str, name_en: str, name_hi: str, name_ta: str, district: str, population_group: str, size: str, address1_en: str = "", address2_en: str = "", address3_en: str = "", address1_hi: str = "", address2_hi: str = "", address3_hi: str = "", address1_ta: str = "", address2_ta: str = "", address3_ta: str = "", pincode: str = "", email: str = "", phone: str = "") -> bool:
+        units = self.repo.get_by_category("UNIT")
+        target_code = str(code).zfill(4)
+        unit = next((u for u in units if str(u.code).zfill(4) == target_code), None)
+        if not unit: return False
+        
+        unit.name_en = name_en
+        unit.name_hi = name_hi
+        unit.name_local = name_ta
+        
+        meta = unit.metadata or {}
+        meta["district"] = district
+        meta["populationGroup"] = population_group
+        meta["population_group"] = population_group
+        meta["size"] = size
+        
+        # Strip floats or clean pincode, email, phone
+        try:
+            pincode_clean = str(pincode).strip()
+            if pincode_clean.endswith(".0"):
+                pincode_clean = pincode_clean[:-2]
+            elif pincode_clean.lower() in ["nan", "none"]:
+                pincode_clean = ""
+            pincode = pincode_clean
+        except:
+            pass
+        meta["pincode"] = pincode
+        
+        try:
+            phone_clean = str(phone).strip()
+            if phone_clean.endswith(".0"):
+                phone_clean = phone_clean[:-2]
+            elif phone_clean.lower() in ["nan", "none"]:
+                phone_clean = ""
+            phone = phone_clean
+        except:
+            pass
+        meta["phone"] = phone
+        
+        try:
+            email_clean = str(email).strip()
+            if email_clean.lower() in ["nan", "none"]:
+                email_clean = ""
+            email = email_clean
+        except:
+            pass
+        meta["email"] = email
+        
+        meta["address1_en"] = address1_en
+        meta["address2_en"] = address2_en
+        meta["address3_en"] = address3_en
+        
+        meta["address1_hi"] = address1_hi
+        meta["address2_hi"] = address2_hi
+        meta["address3_hi"] = address3_hi
+        
+        meta["address1_ta"] = address1_ta
+        meta["address2_ta"] = address2_ta
+        meta["address3_ta"] = address3_ta
+        
+        # Build multiline address fields dynamically
+        meta["address"] = "\n".join([p for p in [address1_en, address2_en, address3_en] if p])
+        meta["addressHi"] = "\n".join([p for p in [address1_hi, address2_hi, address3_hi] if p])
+        meta["addressTa"] = "\n".join([p for p in [address1_ta, address2_ta, address3_ta] if p])
+        
+        unit.metadata = meta
+        self.repo.save(unit)
+        
+        try:
+            self._write_back_to_branches_csv()
+        except Exception as e:
+            logger.warning(f"Failed to update branches.csv: {e}")
+            
+        self._update_sync_state()
+        return True
+
+    def _write_back_to_branches_csv(self) -> None:
+        csv_path = project_path("files", "branches.csv")
+        records = self.repo.get_by_category("UNIT")
+        data = []
+        for r in records:
+            meta = r.metadata or {}
+            data.append({
+                "id": r.id,
+                "sNo": meta.get("sNo", ""),
+                "code": r.code,
+                "officeId": meta.get("officeId", ""),
+                "nameEn": r.name_en,
+                "nameTa": r.name_local,
+                "nameHi": r.name_hi,
+                "type": meta.get("type", "Branch"),
+                "openDate": meta.get("openDate", ""),
+                "district": meta.get("district", ""),
+                "populationGroup": meta.get("populationGroup", ""),
+                "riskCategory": meta.get("riskCategory", ""),
+                "riskEffectiveDate": meta.get("riskEffectiveDate", ""),
+                "specialStatus": meta.get("specialStatus", ""),
+                "ifsc": meta.get("ifsc", ""),
+                "address": meta.get("address", ""),
+                "latitude": meta.get("latitude", ""),
+                "longitude": meta.get("longitude", ""),
+                "pincode": meta.get("pincode", ""),
+                "headUserId": meta.get("headUserId", ""),
+                "secondLineUserId": meta.get("secondLineUserId", ""),
+                "addressHi": meta.get("addressHi", ""),
+                "addressTa": meta.get("addressTa", ""),
+                "email": meta.get("email", ""),
+                "phone": meta.get("phone", ""),
+                "size": meta.get("size", ""),
+                "address1_en": meta.get("address1_en", ""),
+                "address2_en": meta.get("address2_en", ""),
+                "address3_en": meta.get("address3_en", ""),
+                "address1_hi": meta.get("address1_hi", ""),
+                "address2_hi": meta.get("address2_hi", ""),
+                "address3_hi": meta.get("address3_hi", ""),
+                "address1_ta": meta.get("address1_ta", ""),
+                "address2_ta": meta.get("address2_ta", ""),
+                "address3_ta": meta.get("address3_ta", "")
+            })
+        
+        df = pd.DataFrame(data)
+        original_cols = [
+            "id", "sNo", "code", "officeId", "nameEn", "nameTa", "nameHi", "type", "openDate",
+            "district", "populationGroup", "riskCategory", "riskEffectiveDate", "specialStatus",
+            "ifsc", "address", "latitude", "longitude", "pincode", "headUserId", "secondLineUserId",
+            "addressHi", "addressTa", "email", "phone", "size",
+            "address1_en", "address2_en", "address3_en",
+            "address1_hi", "address2_hi", "address3_hi",
+            "address1_ta", "address2_ta", "address3_ta"
+        ]
+        df = df[original_cols]
+        
+        temp_path = csv_path.with_suffix(".tmp")
+        df.to_csv(temp_path, index=False)
+        if csv_path.exists():
+            os.replace(temp_path, csv_path)
+        else:
+            os.rename(temp_path, csv_path)
 
     # Staff Management Logic
     @st.cache_data(show_spinner=False, ttl=3600)

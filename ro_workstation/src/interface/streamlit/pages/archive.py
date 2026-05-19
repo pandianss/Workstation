@@ -172,6 +172,7 @@ def render():
                         elif doc["Source"] == "Office Note":
                             content = doc["RAW"].get("parsed_content", {})
                             if doc["Type"] == 'HIGH_VALUE_DD':
+                                sig_snap = content.get("signatorySnapshot", {})
                                 mapped_data = {
                                     "branch_sol": content.get("branchSol"),
                                     "applicant_name": content.get("applicantName"),
@@ -186,7 +187,10 @@ def render():
                                     "circulars": content.get("policyCirculars", []),
                                     "recommendation": content.get("recommendation", "Approved as per guidelines."),
                                     "ref_no": doc["Ref No"],
-                                    "note_date": content.get("noteDate")
+                                    "note_date": content.get("noteDate"),
+                                    "sig_init": sig_snap.get("initiator"),
+                                    "sig_rec": sig_snap.get("recommender"),
+                                    "sig_app": sig_snap.get("approver")
                                 }
                                 pdf_bytes = doc_service.generate_high_value_dd_pdf(mapped_data)
                             else:
@@ -302,6 +306,7 @@ def render_doc_manager(doc, note_service, circ_service, mis_service, doc_service
             elif doc["Source"] == "Office Note":
                 content = doc["RAW"].get("parsed_content", {})
                 if doc["Type"] == 'HIGH_VALUE_DD':
+                    sig_snap = content.get("signatorySnapshot", {})
                     mapped_data = {
                         "branch_sol": content.get("branchSol"),
                         "applicant_name": content.get("applicantName"),
@@ -316,7 +321,10 @@ def render_doc_manager(doc, note_service, circ_service, mis_service, doc_service
                         "circulars": content.get("policyCirculars", []),
                         "recommendation": content.get("recommendation", "Approved as per guidelines."),
                         "ref_no": doc["Ref No"],
-                        "note_date": content.get("noteDate")
+                        "note_date": content.get("noteDate"),
+                        "sig_init": sig_snap.get("initiator"),
+                        "sig_rec": sig_snap.get("recommender"),
+                        "sig_app": sig_snap.get("approver")
                     }
                     pdf_bytes = doc_service.generate_high_value_dd_pdf(mapped_data)
                 else:

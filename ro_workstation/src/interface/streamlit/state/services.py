@@ -45,3 +45,8 @@ def get_search_service():
 @st.cache_resource
 def get_master_service():
     return MasterService()
+
+@st.cache_resource
+def get_achievement_service():
+    from src.application.services.achievement_service import AchievementService
+    return AchievementService()

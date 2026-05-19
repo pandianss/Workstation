@@ -117,6 +117,30 @@ class DocumentEngine:
         org = self.registry.get_org_info()
         contact = self.registry.get_contact_info()
         
+        ro_address_en = contact["address"]["en"]
+        ro_address_hi = contact["address"]["hi"]
+        ro_address_ta = contact["address"]["ta"]
+        
+        try:
+            from src.infrastructure.persistence.master_repository import MasterRepository
+            repo = MasterRepository()
+            recs = repo.get_by_category('UNIT')
+            ro_rec = next((r for r in recs if r.code == '3933'), None)
+            if ro_rec and ro_rec.metadata:
+                m = ro_rec.metadata
+                addr_en = f"{m.get('address2_en', '')}, {m.get('address3_en', '')}".strip(", ")
+                addr_hi = f"{m.get('address2_hi', '')}, {m.get('address3_hi', '')}".strip(", ")
+                addr_ta = f"{m.get('address2_ta', '')}, {m.get('address3_ta', '')}".strip(", ")
+                
+                if addr_en:
+                    ro_address_en = addr_en
+                if addr_hi:
+                    ro_address_hi = addr_hi
+                if addr_ta:
+                    ro_address_ta = addr_ta
+        except Exception as e:
+            logger.warning("Failed to fetch RO address from master repository: %s", e)
+
         # Format address with breaks
         def format_address(addr, marker):
             if not addr: return ""
@@ -125,6 +149,21 @@ class DocumentEngine:
             if marker in addr:
                 parts = addr.split(marker, 1)
                 return f"{parts[0]}{marker},<br/>{parts[1].lstrip(', ')}"
+            
+            # Legacy/Alternate markers
+            for alt in ["Pensioner Street", "पेंशनर स्ट्रीट", "பென்ஷனர் தெரு", "பென்ஷனர் வீதி", "Spencer Compound", "के पास", "அருகில்"]:
+                if alt in addr:
+                    parts = addr.split(alt, 1)
+                    return f"{parts[0]}{alt},<br/>{parts[1].lstrip(', ')}"
+                    
+            # General fallback: split at the second comma if possible
+            parts = [p.strip() for p in addr.split(",")]
+            if len(parts) >= 3:
+                first_half = ", ".join(parts[:2])
+                second_half = ", ".join(parts[2:])
+                return f"{first_half},<br/>{second_half}"
+            elif len(parts) == 2:
+                return f"{parts[0]},<br/>{parts[1]}"
             return addr
 
         data = {
@@ -134,9 +173,9 @@ class DocumentEngine:
             "officeNameEn": org["office_name"]["en"],
             "officeNameHi": org["office_name"]["hi"],
             "officeNameTa": org["office_name"]["ta"],
-            "addressEnFormatted": format_address(contact["address"]["en"], "Pensioner Street"),
-            "addressHiFormatted": format_address(contact["address"]["hi"], "पेंशनर स्ट्रीट"),
-            "addressTaFormatted": format_address(contact["address"]["ta"], "பென்ஷனர் தெரு"),
+            "addressEnFormatted": format_address(ro_address_en, "Pensioner Street"),
+            "addressHiFormatted": format_address(ro_address_hi, "पेंशनर स्ट्रीट"),
+            "addressTaFormatted": format_address(ro_address_ta, "பென்ஷனர் வீதி"),
             "phone": contact["phone"],
             "email": contact["email"],
             "website": contact["website"],
@@ -162,12 +201,20 @@ class DocumentEngine:
         """Renders an HTML template with unified context."""
         template = self.env.get_template(template_name)
         
+        # Calculate bank years
+        bank_founding_date = datetime.date(1937, 2, 10)
+        today = datetime.date.today()
+        years = today.year - bank_founding_date.year
+        if (today.month, today.day) < (bank_founding_date.month, bank_founding_date.day):
+            years -= 1
+
         # Inject standard context
         context = {
             "org": self.org_data,
             "font_base_url": self.fonts_dir.as_uri() + "/",
             "datetime": datetime,
-            "today": datetime.date.today()
+            "today": today,
+            "bank_years": years
         }
         
         # Safely update with kwargs to avoid any internal clashes

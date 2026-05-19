@@ -24,37 +24,37 @@
     </div>
 
     <!-- Trilingual Multi-Row Signatory Section -->
-    <div class="sig-section" style="margin-top: 80px; border-top: 1px solid #f0f0f0; padding-top: 30px;">
+    <div class="sig-section" style="margin-top: 60px; border-top: 1px solid #f0f0f0; padding-top: 20px; page-break-inside: avoid;">
         
         <!-- Row 1: Initiator (Left Aligned) -->
-        <div style="margin-bottom: 50px; display: flex; justify-content: flex-start;">
-            <div style="text-align: center; width: 30%;">
-                <div style="font-size: 10.5px; line-height: 1.5; margin-bottom: 2px;">
-                    <span class="office-label-ta">{{ initiator.name_ta }}</span> / 
-                    <span class="office-label-hi">{{ initiator.name_hi }}</span> / 
+        <div style="margin-bottom: 40px; display: flex; justify-content: flex-start; page-break-inside: avoid;">
+            <div style="text-align: center; width: 30%; page-break-inside: avoid;">
+                <div style="font-size: 10px; line-height: 1.35; margin-bottom: 3px;">
+                    <div class="office-label-ta">{{ initiator.name_ta }}</div>
+                    <div class="office-label-hi">{{ initiator.name_hi }}</div>
                     <strong>{{ initiator.name }}</strong>
                 </div>
-                <div style="font-size: 9.5px; color: #444;">
-                    <span class="office-label-ta">{{ initiator.desig_ta }}</span> / 
-                    <span class="office-label-hi">{{ initiator.desig_hi }}</span> / 
-                    {{ initiator.desig_en }}
+                <div style="font-size: 8.5px; line-height: 1.3; color: #444;">
+                    <div class="office-label-ta">{{ initiator.desig_ta }}</div>
+                    <div class="office-label-hi">{{ initiator.desig_hi }}</div>
+                    <div style="text-transform: uppercase;">{{ initiator.desig_en }}</div>
                 </div>
             </div>
         </div>
 
         <!-- Row 2: Executives (Up to 3 in a Row, Centered) -->
-        <div style="display: flex; flex-wrap: wrap; justify-content: space-around; gap: 20px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-around; gap: 20px; page-break-inside: avoid;">
             {% for sig in signatory_list %}
-            <div style="text-align: center; width: 30%; margin-bottom: 40px;">
-                <div style="font-size: 10.5px; line-height: 1.5; margin-bottom: 2px;">
-                    <span class="office-label-ta">{{ sig.name_ta }}</span> / 
-                    <span class="office-label-hi">{{ sig.name_hi }}</span> / 
+            <div style="text-align: center; width: 30%; margin-bottom: 30px; page-break-inside: avoid;">
+                <div style="font-size: 10px; line-height: 1.35; margin-bottom: 3px;">
+                    <div class="office-label-ta">{{ sig.name_ta }}</div>
+                    <div class="office-label-hi">{{ sig.name_hi }}</div>
                     <strong>{{ sig.name }}</strong>
                 </div>
-                <div style="font-size: 9.5px; color: #444;">
-                    <span class="office-label-ta">{{ sig.desig_ta }}</span> / 
-                    <span class="office-label-hi">{{ sig.desig_hi }}</span> / 
-                    {{ sig.desig_en }}
+                <div style="font-size: 8.5px; line-height: 1.3; color: #444;">
+                    <div class="office-label-ta">{{ sig.desig_ta }}</div>
+                    <div class="office-label-hi">{{ sig.desig_hi }}</div>
+                    <div style="text-transform: uppercase;">{{ sig.desig_en }}</div>
                 </div>
             </div>
             {% endfor %}

@@ -61,6 +61,21 @@ class CircularService:
             circulars.append(circular)
             
         self._save_data(circulars)
+
+        # Sync to Wizard Submissions so it shows up in Unified Master Archive
+        try:
+            from src.application.services.wizard_service import WizardService
+            wiz_svc = WizardService()
+            wiz_svc.save_submission(
+                wizard_type="circular_drafter",
+                submitted_by=circular.get('author', 'Staff'),
+                content=circular,
+                subject=circular.get('subject', 'Circular'),
+                ref=circular.get('ref_no')
+            )
+        except Exception:
+            pass
+
         return circular
 
     def get_all(self) -> List[Dict]:
@@ -82,5 +97,21 @@ class CircularService:
         circulars = [c for c in circulars if isinstance(c, dict) and c.get('id') != circ_id and c.get('number') != circ_id and c.get('ref_no') != circ_id]
         if len(circulars) < initial_count:
             self._save_data(circulars)
+
+            # Delete from Wizard Submissions
+            try:
+                from src.infrastructure.persistence.database import get_db_session
+                from src.infrastructure.persistence.sqlite_models import WizardSubmissionModel
+                with get_db_session() as session:
+                    sub = session.query(WizardSubmissionModel).filter(
+                        (WizardSubmissionModel.reference_no == circ_id) | 
+                        (WizardSubmissionModel.reference_no.like(f"%{circ_id}%"))
+                    ).first()
+                    if sub:
+                        session.delete(sub)
+                        session.commit()
+            except Exception:
+                pass
+
             return True
         return False

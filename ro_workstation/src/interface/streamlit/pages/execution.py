@@ -151,10 +151,11 @@ def render_office_note_tab(doc_service, get_master_service):
         col1, col2 = st.columns(2)
         with col1:
             dept = st.selectbox("Department", options=dept_options, index=dept_options.index(default_dept) if dept_options else 0, format_func=lambda x: dept_map.get(x, x))
-            subject = st.text_input("Subject")
         with col2:
             ref = st.text_input("Reference No (Optional)")
-            prepared_by = st.text_input("Prepared By", value=st.session_state.get("display_name") or st.session_state.get("username", "Staff User"))
+            
+        subject = st.text_input("Subject")
+        prepared_by = st.session_state.get("display_name") or st.session_state.get("username", "Staff User")
         
         exec_list = get_master_service().get_ro_executives()
         exec_options = {e["roll"]: e["name"] for e in exec_list}
@@ -233,6 +234,9 @@ def render_office_note_tab(doc_service, get_master_service):
                     "parsed_content": {
                         "deptName": params["dept"],
                         "details": f"<h3>Introduction</h3>{params['intro']}<h3>Observations</h3>{params['obs']}<h3>Recommendations</h3>{params['recs']}",
+                        "intro": params["intro"],
+                        "obs": params["obs"],
+                        "recs": params["recs"],
                         "signatorySnapshot": {
                             "preparer": {"name": params["prep"]},
                             "reviewers": [{"name": s} for s in params["sigs"]]

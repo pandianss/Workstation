@@ -256,3 +256,25 @@ class CommunicationRequestModel(Base):
     responded_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class AccountOpeningModel(Base):
+    __tablename__ = "account_openings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sol_id = Column(Integer, nullable=False, index=True)
+    schm_type = Column(String, nullable=False, index=True)
+    schm_code = Column(String, nullable=False)
+    acct_opn_date = Column(Date, nullable=False, index=True)
+    clr_bal_amt = Column(Float, default=0.0)
+    average_balance = Column(Float, default=0.0)
+
+
+class AccountClosureModel(Base):
+    __tablename__ = "account_closures"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sol_id = Column(Integer, nullable=False, index=True)
+    acct_cls_date = Column(Date, nullable=False, index=True)
+    schm_type = Column(String, nullable=False, index=True)
+

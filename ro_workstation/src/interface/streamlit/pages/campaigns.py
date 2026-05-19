@@ -168,16 +168,25 @@ def render() -> None:
                     st.rerun()
 
     with tabs[2]:
+        if "campaign_launch_success" in st.session_state:
+            st.success(st.session_state.pop("campaign_launch_success"))
+
+        if "campaign_form_id" not in st.session_state:
+            st.session_state["campaign_form_id"] = 0
+
         st.markdown("### 🚀 Launch Strategic Mission")
         st.caption("Define your regional objectives and intelligently allocate targets to branches.")
         
         from src.infrastructure.persistence.master_repository import MasterRepository
         repo = MasterRepository()
         branches = repo.get_by_category("UNIT")
+        # Filter out Regional Office so it does not receive campaign target allocation
+        branches = [b for b in branches if (b.metadata or {}).get("type") != "REGIONAL OFFICE"]
         branches = sorted(branches, key=lambda x: x.name_en)
 
         with st.container(border=True):
-            name = st.text_input("Mission Name", placeholder="e.g., Gold Loan Carnival June 2026")
+            form_id = st.session_state["campaign_form_id"]
+            name = st.text_input("Mission Name", placeholder="e.g., Gold Loan Carnival June 2026", key=f"campaign_name_input_{form_id}")
             col1, col2 = st.columns(2)
             start = col1.date_input("Start Date")
             end = col2.date_input("End Date")
@@ -262,5 +271,6 @@ def render() -> None:
                     st.error("Please set a valid Regional Target.")
                 else:
                     service.add_campaign(name, str(start), str(end), metric, total_target, branch_targets)
-                    st.success(f"Strategic Mission '{name}' launched successfully! Branch targets have been allocated.")
+                    st.session_state["campaign_launch_success"] = f"Strategic Mission '{name}' launched successfully! Branch targets have been allocated."
+                    st.session_state["campaign_form_id"] = st.session_state.get("campaign_form_id", 0) + 1
                     st.rerun()

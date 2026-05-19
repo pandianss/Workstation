@@ -19,6 +19,96 @@ from src.core.utils.number_utils import format_crore as format_cr
 from src.infrastructure.persistence.master_repository import MasterRepository
 from src.application.services.document import DocumentService
 
+def compile_performer_data(selected_date: datetime.date, metric_col: str, basis: str) -> tuple[list[dict], list[dict]]:
+    """Compiles sorted top and bottom performers for a given metric and basis."""
+    from src.application.use_cases.mis.service import MISAnalyticsService
+    from src.infrastructure.persistence.budget_repository import BudgetRepository
+    from src.core.utils.financial_year import get_fy_start
+    import datetime
+
+    service = MISAnalyticsService()
+    budget_repo = BudgetRepository()
+    
+    fy_start_date = get_fy_start(selected_date)
+    prev_ye_date = fy_start_date - datetime.timedelta(days=1)
+    
+    df = service.get_data(start_date=prev_ye_date, end_date=selected_date)
+    if df.empty:
+        return [], []
+        
+    current_month_df = df[df["DATE"].dt.date == selected_date]
+    if current_month_df.empty:
+        return [], []
+        
+    prev_ye_df = df[df["DATE"].dt.date == prev_ye_date]
+    
+    master_svc = MasterService()
+    units = master_svc.repo.get_by_category("UNIT")
+    unit_map = {int(u.code): u.name_en for u in units if u.code.isdigit()}
+    
+    compiled = []
+    ym = selected_date.strftime("%Y-%m")
+    
+    for sol in current_month_df["SOL"].unique():
+        if sol == 3933: continue  # Skip RO
+        
+        branch_data = current_month_df[current_month_df["SOL"] == sol]
+        if branch_data.empty: continue
+        row = branch_data.iloc[0]
+        
+        actual = float(row.get(metric_col.upper(), 0.0))
+        
+        # 1. Baseline value (prev YE)
+        prev_row = prev_ye_df[prev_ye_df["SOL"] == sol]
+        prev_val = float(prev_row.iloc[0].get(metric_col.upper(), 0.0)) if not prev_row.empty else 0.0
+        
+        # 2. Target value
+        target = budget_repo.get_target(metric_col.upper(), ym, sols=[int(sol)])
+        
+        growth = actual - prev_val
+        pct = (actual / target * 100) if target > 0 else 0.0
+        
+        compiled.append({
+            "sol": sol,
+            "name": unit_map.get(int(sol), f"SOL {sol}"),
+            "actual": actual,
+            "growth": growth,
+            "pct": pct,
+            "target": target
+        })
+        
+    # Determine sorting order
+    is_npa = "NPA" in metric_col.upper()
+    reverse_sort = not is_npa
+    
+    if basis == "Actual Balance (₹ Cr)":
+        compiled.sort(key=lambda x: x["actual"], reverse=reverse_sort)
+        for c in compiled:
+            c["formatted_value"] = f"{c['actual']:.2f}%" if "%" in metric_col else f"₹ {c['actual']:.2f} Cr"
+    elif basis == "FY Growth (₹ Cr)":
+        compiled.sort(key=lambda x: x["growth"], reverse=reverse_sort)
+        for c in compiled:
+            c["formatted_value"] = f"{c['growth']:+.2f}%" if "%" in metric_col else f"₹ {c['growth']:+.2f} Cr"
+    elif basis == "Budget Achievement (%)":
+        compiled.sort(key=lambda x: x["pct"], reverse=reverse_sort)
+        for c in compiled:
+            c["formatted_value"] = f"{c['pct']:.1f}%"
+            
+    # Format for infographic
+    top_branches = [{"name": x["name"], "value": x["formatted_value"]} for x in compiled[:10]]
+    
+    bottom_branches = []
+    last_10 = compiled[-10:]
+    for i, x in enumerate(reversed(last_10)):
+        actual_rank = len(compiled) - i
+        bottom_branches.append({
+            "name": x["name"],
+            "value": x["formatted_value"],
+            "rank": actual_rank
+        })
+    
+    return top_branches, bottom_branches
+
 @st.fragment
 def render_ingestion_portal(service, letter_service):
     st.markdown("#### 📥 Live Ingestion Portal")
@@ -299,7 +389,7 @@ def render() -> None:
                 """, unsafe_allow_html=True)
 
     # Visualization Layer
-    tabs = st.tabs(["📊 Business Trends", "🏦 Advances Portfolio", "🏆 Milestones Record", "🎯 Budget Matrix", "📬 Budget Communication"])
+    tabs = st.tabs(["📊 Business Trends", "🏦 Advances Portfolio", "🏆 Milestones Record", "🎯 Budget Matrix", "📬 Budget Communication", "🎨 Infographics Portal"])
     
     with tabs[0]:
         col_chart, col_table = st.columns([1.5, 1])
@@ -852,6 +942,116 @@ def render() -> None:
                 st.rerun()
         else:
             st.info("No performance data available.")
+
+    with tabs[5]:
+        st.subheader("🎨 Performance Infographics Portal")
+        st.caption("Generate, preview, and download premium corporate infographics of regional top and bottom performers.")
+        
+        # Deduplicate month list and map to latest date in that month
+        month_to_latest_date = {}
+        for d in dates:
+            if d is None:
+                continue
+            month_key = (d.year, d.month)
+            if month_key not in month_to_latest_date or d > month_to_latest_date[month_key]:
+                month_to_latest_date[month_key] = d
+                
+        # Sorted unique months descending (newest first)
+        unique_months = sorted(list(month_to_latest_date.keys()), reverse=True)
+        
+        # Resolve default month index
+        default_month_key = (selected_date.year, selected_date.month)
+        default_idx = unique_months.index(default_month_key) if default_month_key in unique_months else 0
+        
+        c_date, c_metric = st.columns(2)
+        with c_date:
+            selected_month_key = st.selectbox(
+                "Infographic Reporting Month",
+                options=unique_months,
+                index=default_idx,
+                format_func=lambda x: datetime.date(x[0], x[1], 1).strftime("%B %Y"),
+                key="inf_month_key"
+            )
+        
+        selected_inf_date = month_to_latest_date[selected_month_key]
+        
+        inf_metric_opts = {
+            "ADV": "Total Advances (ADV)",
+            "TOTAL DEPOSITS": "Total Deposits",
+            "CASA": "CASA Deposits",
+            "JEWEL LOAN": "Jewel Loan Portfolio",
+            "AGRI": "Core Agri Advances",
+            "MSME": "MSME Portfolio",
+            "RETAIL": "Retail Portfolio"
+        }
+        
+        available_metrics = [m for m in metric_options if m in inf_metric_opts]
+        if not available_metrics:
+            available_metrics = ["ADV", "TOTAL DEPOSITS", "CASA"]
+            
+        with c_metric:
+            selected_inf_metric = st.selectbox(
+                "Infographic Metric",
+                options=available_metrics,
+                format_func=lambda x: inf_metric_opts.get(x, x),
+                key="inf_metric"
+            )
+            
+        c_basis, c_title = st.columns(2)
+        with c_basis:
+            selected_inf_basis = st.selectbox(
+                "Ranking Basis",
+                options=["Actual Balance (₹ Cr)", "FY Growth (₹ Cr)", "Budget Achievement (%)"],
+                key="inf_basis"
+            )
+        with c_title:
+            campaign_title = st.text_input("Campaign Header Title", value="Dindigul Region", key="campaign_title")
+            
+        campaign_sub = st.text_input("Campaign Sub-Title", value="Performance League", key="campaign_sub")
+            
+        if st.button("🎨 Generate Infographic Poster", type="primary", use_container_width=True):
+            with st.spinner("Compiling database records and generating high-resolution poster..."):
+                top_branches, bottom_branches = compile_performer_data(
+                    selected_inf_date, 
+                    selected_inf_metric, 
+                    selected_inf_basis
+                )
+                
+                if not top_branches:
+                    st.error("No performer records compiled. Please verify data exists for this date.")
+                else:
+                    graphic_srv = GraphicService()
+                    month_str = selected_inf_date.strftime("%B %Y")
+                    metric_label = inf_metric_opts.get(selected_inf_metric, selected_inf_metric)
+                    
+                    img_bytes = graphic_srv.generate_performance_infographic(
+                        campaign_title,
+                        campaign_sub,
+                        metric_label,
+                        selected_inf_basis,
+                        month_str,
+                        top_branches,
+                        bottom_branches
+                    )
+                    
+                    st.session_state["infographic_bytes"] = img_bytes
+                    st.session_state["infographic_filename"] = f"Performance_Infographic_{selected_inf_metric}_{selected_inf_basis.split()[0]}_{selected_inf_date}.png"
+        
+        if "infographic_bytes" in st.session_state:
+            st.success("🎉 Infographic generated successfully!")
+            
+            # Show download button
+            st.download_button(
+                label="📥 Download High-Resolution Infographic (PNG)",
+                data=st.session_state["infographic_bytes"],
+                file_name=st.session_state["infographic_filename"],
+                mime="image/png",
+                use_container_width=True
+            )
+            
+            # Show a beautiful live preview of the infographic in Streamlit
+            st.markdown("### 🖼️ Infographic Live Preview")
+            st.image(st.session_state["infographic_bytes"], use_container_width=True)
 
     # Full Data View
     with st.expander("📋 Detailed MIS Inventory"):

@@ -169,6 +169,7 @@ def render_note_details(note, doc_service, note_service):
                 try:
                     if note['type'] == 'HIGH_VALUE_DD':
                         # Map CSV keys to service keys
+                        sig_snap = content.get("signatorySnapshot", {})
                         mapped_data = {
                             "branch_sol": content.get("branchSol"),
                             "applicant_name": content.get("applicantName"),
@@ -183,7 +184,10 @@ def render_note_details(note, doc_service, note_service):
                             "circulars": content.get("policyCirculars", []),
                             "recommendation": content.get("recommendation", "Approved as per guidelines."),
                             "ref_no": note["referenceNo"],
-                            "note_date": content.get("noteDate")
+                            "note_date": content.get("noteDate"),
+                            "sig_init": sig_snap.get("initiator"),
+                            "sig_rec": sig_snap.get("recommender"),
+                            "sig_app": sig_snap.get("approver")
                         }
                         pdf_bytes = doc_service.generate_high_value_dd_pdf(mapped_data)
                     

@@ -122,6 +122,48 @@ def render() -> None:
         st.subheader("✅ Step 5: Finalize & Download")
         st.success("Note configuration complete. You can now generate the official PDF document.")
         
+        # Resolve live staff list and executives
+        from src.interface.streamlit.state.services import get_master_service
+        master_svc = get_master_service()
+        all_staff = master_svc.get_by_category("STAFF")
+        
+        # Compile list of active RO staff members
+        ro_staff_opts = sorted([
+            f"{s.name_en} ({s.designation or 'Officer'})"
+            for s in all_staff if str(s.metadata.get("sol")) == "3933" and s.username != "admin"
+        ])
+        if not ro_staff_opts:
+            ro_staff_opts = ["Assistant Manager, GAD", "Chief Manager, GAD", "Regional Manager"]
+
+        username = st.session_state.get("username", "Staff")
+        curr_user_obj = next((u for u in all_staff if u.username == username), None)
+        if curr_user_obj:
+            default_initiator = f"{curr_user_obj.name_en} ({curr_user_obj.designation or 'Officer'})"
+        else:
+            default_initiator = "Assistant Manager, GAD"
+
+        # Detect sensible defaults
+        def_rec_idx = 0
+        for idx, opt in enumerate(ro_staff_opts):
+            if any(term in opt.upper() for term in ["CHIEF MANAGER", "AGM", "CHIEF"]):
+                def_rec_idx = idx
+                break
+                
+        def_app_idx = 0
+        for idx, opt in enumerate(ro_staff_opts):
+            if any(term in opt.upper() for term in ["SRM", "SENIOR REGIONAL", "CHIEF REGIONAL", "REGIONAL MANAGER", "RM"]):
+                def_app_idx = idx
+                break
+        if def_app_idx == 0 and len(ro_staff_opts) > 1:
+            def_app_idx = min(1, len(ro_staff_opts) - 1)
+
+        # Dynamic Signatory configuration panel
+        with st.expander("✍️ Signatory Configuration", expanded=True):
+            col_s1, col_s2, col_s3 = st.columns(3)
+            sig_init = col_s1.text_input("Initiator", value=default_initiator)
+            sig_rec = col_s2.selectbox("Recommending Authority", options=ro_staff_opts, index=def_rec_idx)
+            sig_app = col_s3.selectbox("Approving Authority", options=ro_staff_opts, index=def_app_idx)
+        
         note_data = {
             "branch_sol": form["branchSOLID"],
             "applicant_name": form["applicantName"],
@@ -136,7 +178,11 @@ def render() -> None:
             "circulars": form["policies"],
             "recommendation": form["recommendation"],
             "ref_no": form["refNo"],
-            "note_date": form["date"]
+            "note_date": form["date"],
+            # Dynamic Signatory mappings
+            "sig_init": sig_init,
+            "sig_rec": sig_rec,
+            "sig_app": sig_app
         }
 
         if st.button("📥 GENERATE & DOWNLOAD PDF", use_container_width=True, type="primary"):
@@ -173,7 +219,13 @@ def render() -> None:
                     "purpose": note_data['purpose'],
                     "policyCirculars": note_data['circulars'],
                     "recommendation": note_data['recommendation'],
-                    "noteDate": note_data['note_date']
+                    "noteDate": note_data['note_date'],
+                    # Archive dynamic signatories
+                    "signatorySnapshot": {
+                        "initiator": sig_init,
+                        "recommender": sig_rec,
+                        "approver": sig_app
+                    }
                 }
             }
             note_service.save_note(new_note)

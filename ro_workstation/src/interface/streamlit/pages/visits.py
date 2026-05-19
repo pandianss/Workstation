@@ -10,6 +10,7 @@ from src.application.services.visit_service import VisitService
 from src.application.services.document import DocumentService
 from src.interface.streamlit.components.primitives import render_action_bar, render_data_table
 from src.infrastructure.persistence.master_repository import MasterRepository
+from src.interface.streamlit.state.services import get_master_service
 
 def render() -> None:
     render_action_bar("Region Head Branch Visits", ["Visit Tracking", "Monthly Returns", "Observation Letters"])
@@ -84,12 +85,23 @@ def render() -> None:
             st.markdown("### 🛠️ Document Generation Wizard")
             st.info("This will generate the Consolidated Monthly Return and individual Observation Letters for all branches listed above.")
             
+            master_service = get_master_service()
+            exec_list = master_service.get_ro_executives()
+            exec_options = {e["roll"]: e["name"] for e in exec_list}
+            
+            selected_sig_roll = st.selectbox(
+                "Signing Authority", 
+                options=list(exec_options.keys()), 
+                format_func=lambda x: exec_options[x], 
+                key="visit_sig"
+            )
+
             col_gen, col_zip = st.columns([1, 1])
             
             if col_gen.button("🚀 Prepare Return Kit", use_container_width=True):
                 with st.spinner("Generating PDF documents..."):
                     # 1. Consolidated Report
-                    main_pdf = doc_service.generate_branch_visit_report(month, year, visits)
+                    main_pdf = doc_service.generate_branch_visit_report(month, year, visits, selected_sig_roll)
                     
                     # 2. Individual Letters
                     zip_buffer = io.BytesIO()
@@ -99,7 +111,7 @@ def render() -> None:
                         
                         # Add individual letters
                         for v in visits:
-                            letter_pdf = doc_service.generate_visit_observation_letter(v)
+                            letter_pdf = doc_service.generate_visit_observation_letter(v, selected_sig_roll)
                             filename = f"Observation_Letter_{v.sol}_{v.branch_name.replace(' ', '_')}.pdf"
                             zf.writestr(f"Observation_Letters/{filename}", letter_pdf)
                     

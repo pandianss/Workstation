@@ -56,7 +56,11 @@
                 </tr>
                 {% for p in params %}
                 <tr>
-                    <td style="font-weight: 600; padding: 4px 2px; {% if p.is_subset %}padding-left: 15px; font-style: italic;{% endif %}">
+                    {% if p.is_subset %}
+                    <td style="font-weight: 600; padding: 4px 2px; padding-left: 15px; font-style: italic;">
+                    {% else %}
+                    <td style="font-weight: 600; padding: 4px 2px;">
+                    {% endif %}
                         {{ p.display_name }}
                     </td>
                     <td style="text-align: right; background-color: #f8fafc; padding: 4px 2px;">{{ "{:.2f}".format(p.prev_fy_value) }}</td>
