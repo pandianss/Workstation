@@ -3,7 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 import datetime
+import html
 import plotly.express as px
+import streamlit.components.v1 as components
 
 from src.application.services.guardian_service import GuardianService
 from src.application.services.task_service import TaskService
@@ -26,7 +28,7 @@ def show_preview(circular_data: dict, index: int) -> None:
     st.caption(f"Ref: {circular_data.get('ref_no')} | Date: {circular_data.get('date')}")
     
     html = get_doc_service_v4().generate_circular_html(circular_data)
-    st.components.v1.html(html, height=500, scrolling=True)
+    components.html(html, height=500, scrolling=True)
     
     pdf_key = f"circ_pdf_cache_{index}"
     if pdf_key not in st.session_state:
@@ -69,10 +71,11 @@ def render() -> None:
             val = c.get("target_value", 0)
             from src.core.utils.number_utils import format_campaign_target
             val_str = format_campaign_target(val, metric)
+            c_name = html.escape(str(c.get('name', '')))
             ticker_items.append(
-                f"🚀 <strong>CAMPAIGN ACTIVE:</strong> <span style='color:#fbbf24;'>{c.get('name')}</span> "
-                f"({metric} Target: {val_str}) "
-                f"| Valid: {c.get('start_date')} to {c.get('end_date')}"
+                f"🚀 <strong>CAMPAIGN ACTIVE:</strong> <span style='color:#fbbf24;'>{c_name}</span> "
+                f"({html.escape(metric)} Target: {html.escape(val_str)}) "
+                f"| Valid: {html.escape(str(c.get('start_date', '')))} to {html.escape(str(c.get('end_date', '')))}"
             )
         ticker_content = " &nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;&nbsp; ".join(ticker_items)
     else:
@@ -207,9 +210,11 @@ def render() -> None:
                     # Check age
                     is_new = False
                     try:
-                        c_date = datetime.datetime.strptime(c.get('date'), "%Y-%m-%d").date()
-                        if (datetime.date.today() - c_date).days <= 3:
-                            is_new = True
+                        c_date_str = str(c.get('date', ''))
+                        if c_date_str:
+                            c_date = datetime.datetime.strptime(c_date_str, "%Y-%m-%d").date()
+                            if (datetime.date.today() - c_date).days <= 3:
+                                is_new = True
                     except Exception:
                         pass
                         
@@ -237,10 +242,12 @@ def render() -> None:
             alerts = guardian_service.as_frame()
             if not alerts.empty:
                 for _, row in alerts.head(4).iterrows():
+                    branch_name = html.escape(str(row.get('BRANCH', 'Alert')))
+                    remarks = html.escape(str(row.get('REMARKS', ''))[:45])
                     st.markdown(f"""
                         <div class="glass-panel" style="margin-bottom: 6px; padding: 10px; border-left: 3px solid #ef4444; background: #1e293b55;">
-                            <div style="font-weight: 600; font-size: 0.85rem;">{row.get('BRANCH', 'Alert')}</div>
-                            <div style="font-size: 0.75rem; opacity: 0.8;">{row.get('REMARKS', '')[:45]}...</div>
+                            <div style="font-weight: 600; font-size: 0.85rem;">{branch_name}</div>
+                            <div style="font-size: 0.75rem; opacity: 0.8;">{remarks}...</div>
                         </div>
                     """, unsafe_allow_html=True)
             else:
@@ -250,10 +257,12 @@ def render() -> None:
             pending = [r for r in returns_service.get_all() if r["status"] == "Pending"][:4]
             if pending:
                 for r in pending:
+                    title = html.escape(str(r.get('title', 'Return')))
+                    due_date = html.escape(str(r.get('due_date', '')))
                     st.markdown(f"""
                         <div class="glass-panel" style="margin-bottom: 6px; padding: 10px; border-left: 3px solid #10b981; background: #1e293b55;">
-                            <div style="font-weight: 600; font-size: 0.85rem;">{r.get('title', 'Return')}</div>
-                            <div style="font-size: 0.75rem; color: #94a3b8;">Due: {r.get('due_date', '')}</div>
+                            <div style="font-weight: 600; font-size: 0.85rem;">{title}</div>
+                            <div style="font-size: 0.75rem; color: #94a3b8;">Due: {due_date}</div>
                         </div>
                     """, unsafe_allow_html=True)
             else:
@@ -283,12 +292,16 @@ def render() -> None:
                 color = "#3b82f6" if event["type"] == "BRANCH" else "#f59e0b"
                 days_txt = "TODAY" if event["days"] == 0 else f"In {event['days']}d"
                 
+                name_esc = html.escape(str(event['name']))
+                val_esc = html.escape(str(event['val']))
+                date_esc = html.escape(event['date'].strftime('%d %b'))
+                
                 st.markdown(f"""
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 8px; border-radius: 8px; border: 1px solid #ffffff11; background: #ffffff05;">
                         <div style="font-size: 1.2rem;">{icon}</div>
                         <div style="flex-grow: 1;">
-                            <div style="font-size: 0.85rem; font-weight: 600;">{event['name']}</div>
-                            <div style="font-size: 0.7rem; color: #94a3b8;">{event['date'].strftime('%d %b')} | {event['val']}</div>
+                            <div style="font-size: 0.85rem; font-weight: 600;">{name_esc}</div>
+                            <div style="font-size: 0.7rem; color: #94a3b8;">{date_esc} | {val_esc}</div>
                         </div>
                         <div style="font-size: 0.7rem; font-weight: 700; color: {color};">{days_txt}</div>
                     </div>

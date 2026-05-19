@@ -43,13 +43,27 @@ def _render_sidebar() -> str:
     from src.core.logging.audit import AuditLogger
     audit_logger = AuditLogger()
     username = st.session_state.get("username", "GUEST")
-    
-    st.sidebar.markdown("### 🚀 Quick Access")
-    frequent_pages = audit_logger.get_frequent_pages(username)
+    is_guest = st.session_state.get("role") == "GUEST"
     
     # We use a session state key to handle clicks from quick access
     if "requested_page" not in st.session_state:
         st.session_state["requested_page"] = "Dashboard"
+
+    if is_guest:
+        st.markdown(
+            """
+            <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="collapsedControl"] { display: none !important; }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        page = st.session_state.get("requested_page", "Guest Portal")
+        if "first_view_logged" not in st.session_state:
+            audit_logger.log(username, f"Viewed page {page}")
+            st.session_state["first_view_logged"] = True
+        return page
 
     # Premium Sidebar Navigation CSS
     st.sidebar.markdown(
@@ -128,19 +142,24 @@ def _render_sidebar() -> str:
         unsafe_allow_html=True
     )
 
-    if frequent_pages:
-        for p in frequent_pages:
-            if st.sidebar.button(f"👉 {p}", key=f"quick_{p}", use_container_width=True):
-                st.session_state["requested_page"] = p
-                st.rerun()
-    else:
-        st.sidebar.caption("No frequent pages yet.")
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🛠️ Workstation Hub")
+    is_admin = st.session_state.get("role") == "ADMIN"
     
-    # Define Groups for logical organization
-    navigation_structure = {
+    if not is_guest:
+        st.sidebar.markdown("### 🚀 Quick Access")
+        frequent_pages = audit_logger.get_frequent_pages(username)
+        if frequent_pages:
+            for p in frequent_pages:
+                if st.sidebar.button(f"👉 {p}", key=f"quick_{p}", use_container_width=True):
+                    st.session_state["requested_page"] = p
+                    st.rerun()
+        else:
+            st.sidebar.caption("No frequent pages yet.")
+
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🛠️ Workstation Hub")
+        
+        # Define Groups for logical organization
+        navigation_structure = {
         "📊 Insights": ["Dashboard", "MIS", "Campaign Management", "Account Performance"],
         "🏗️ Operations": ["Document Hub", "Coordination Center"],
         "⚖️ Compliance": ["Returns & Compliance"],
@@ -149,43 +168,43 @@ def _render_sidebar() -> str:
         "🛠️ Management": ["Field Guardian", "Branch Visits", "Admin"],
     }
 
-    is_admin = st.session_state.get("role") == "ADMIN"
-    current_page = st.session_state.get("requested_page", "Dashboard")
+        current_page = st.session_state.get("requested_page", "Dashboard")
 
-    # --- Accordion Navigation Logic ---
-    if "active_group" not in st.session_state:
-        # Initial determination of active group based on current page
-        st.session_state["active_group"] = next((g for g, pgs in navigation_structure.items() if current_page in pgs), "📊 Insights")
 
-    for group, pages in navigation_structure.items():
-        allowed_in_group = [p for p in pages if is_admin or p != "Admin"]
-        if not allowed_in_group:
-            continue
+        # --- Accordion Navigation Logic ---
+        if "active_group" not in st.session_state:
+            # Initial determination of active group based on current page
+            st.session_state["active_group"] = next((g for g, pgs in navigation_structure.items() if current_page in pgs), "📊 Insights")
+
+        for group, pages in navigation_structure.items():
+            allowed_in_group = [p for p in pages if is_admin or p != "Admin"]
+            if not allowed_in_group:
+                continue
+                
+            # Inject the CSS trigger before the header button
+            st.sidebar.markdown('<div class="hdr-trigger"></div>', unsafe_allow_html=True)
+            is_active = st.session_state["active_group"] == group
+            header_label = f"{'▼' if is_active else '▶'} {group}"
             
-        # Inject the CSS trigger before the header button
-        st.sidebar.markdown('<div class="hdr-trigger"></div>', unsafe_allow_html=True)
-        is_active = st.session_state["active_group"] == group
-        header_label = f"{'▼' if is_active else '▶'} {group}"
-        
-        if st.sidebar.button(header_label, key=f"hdr_{group}", use_container_width=True):
-            st.session_state["active_group"] = group if not is_active else None
-            st.rerun()
+            if st.sidebar.button(header_label, key=f"hdr_{group}", use_container_width=True):
+                st.session_state["active_group"] = group if not is_active else None
+                st.rerun()
 
-        # Render children only if this group is active (The Accordion effect)
-        if is_active:
-            # Wrap submenus in an animated container
-            st.sidebar.markdown('<div class="submenu-container">', unsafe_allow_html=True)
-            for p in allowed_in_group:
-                # Physical Indent via columns
-                col_indent, col_btn = st.sidebar.columns([0.1, 0.9])
-                with col_btn:
-                    if st.button(p, key=f"nav_btn_{p}", use_container_width=True):
-                        if p != current_page:
-                            st.session_state["requested_page"] = p
-                            st.session_state["active_group"] = group
-                            audit_logger.log(username, f"Viewed page {p}")
-                            st.rerun()
-            st.sidebar.markdown('</div>', unsafe_allow_html=True)
+            # Render children only if this group is active (The Accordion effect)
+            if is_active:
+                # Wrap submenus in an animated container
+                st.sidebar.markdown('<div class="submenu-container">', unsafe_allow_html=True)
+                for p in allowed_in_group:
+                    # Physical Indent via columns
+                    col_indent, col_btn = st.sidebar.columns([0.1, 0.9])
+                    with col_btn:
+                        if st.button(p, key=f"nav_btn_{p}", use_container_width=True):
+                            if p != current_page:
+                                st.session_state["requested_page"] = p
+                                st.session_state["active_group"] = group
+                                audit_logger.log(username, f"Viewed page {p}")
+                                st.rerun()
+                st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
     page = st.session_state["requested_page"]
     
@@ -201,13 +220,29 @@ def _render_sidebar() -> str:
             with st.form("admin_upgrade_form"):
                 admin_pass = st.text_input("Admin Password", type="password")
                 if st.form_submit_button("Elevate Privileges", use_container_width=True):
-                    settings = get_app_settings()
-                    if admin_pass == settings.admin_password:
-                        SessionService().start_session(getpass.getuser())
-                        st.success("Admin access granted!")
-                        st.rerun()
+                    import time
+                    if "admin_failed_attempts" not in st.session_state:
+                        st.session_state.admin_failed_attempts = 0
+                    if "admin_lockout_time" not in st.session_state:
+                        st.session_state.admin_lockout_time = 0
+
+                    if time.time() < st.session_state.admin_lockout_time:
+                        st.error(f"Account locked. Try again in {int(st.session_state.admin_lockout_time - time.time())} seconds.")
                     else:
-                        st.error("Invalid password")
+                        settings = get_app_settings()
+                        if admin_pass == settings.admin_password:
+                            st.session_state.admin_failed_attempts = 0
+                            st.session_state.admin_lockout_time = 0
+                            SessionService().start_session(username)
+                            st.success("Admin access granted!")
+                            st.rerun()
+                        else:
+                            st.session_state.admin_failed_attempts += 1
+                            if st.session_state.admin_failed_attempts >= 5:
+                                st.session_state.admin_lockout_time = time.time() + 300
+                                st.error("Account locked for 5 minutes due to too many failed attempts.")
+                            else:
+                                st.error("Invalid password")
 
 
     # Role Toggle for Admins
@@ -222,14 +257,15 @@ def _render_sidebar() -> str:
             st.rerun()
 
     # --- System Controls ---
-    st.sidebar.markdown("---")
-    with st.sidebar.expander("🛠️ System & Data", expanded=False):
-        if st.button("🔄 Sync Master Data", key="sync_masters_btn", use_container_width=True, help="Update database from Staff and Branch CSV files."):
-            from src.application.services.master_service import MasterService
-            with st.spinner("Synchronizing..."):
-                MasterService().sync_if_needed()
-            st.success("Master records updated!")
-            st.rerun()
+    if not is_guest:
+        st.sidebar.markdown("---")
+        with st.sidebar.expander("🛠️ System & Data", expanded=False):
+            if st.button("🔄 Sync Master Data", key="sync_masters_btn", use_container_width=True, help="Update database from Staff and Branch CSV files."):
+                from src.application.services.master_service import MasterService
+                with st.spinner("Synchronizing..."):
+                    MasterService().sync_if_needed()
+                st.success("Master records updated!")
+                st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.caption("This interface is backed by the new layered architecture.")
@@ -238,33 +274,27 @@ def _render_sidebar() -> str:
 
 def _require_login() -> bool:
     current_user = resolve_current_user()
-    session_service = SessionService()
-    settings = get_app_settings()
 
-    if current_user.role != "GUEST":
-        st.session_state["username"] = current_user.username
-        st.session_state["role"] = current_user.role
-        st.session_state["user_dept"] = current_user.dept
-        st.session_state["user_depts"] = current_user.depts
-        return True
+    st.session_state["username"] = current_user.username
+    st.session_state["role"] = current_user.role
+    st.session_state["user_dept"] = current_user.dept
+    st.session_state["user_depts"] = current_user.depts
 
-    st.warning(f"PC User '{current_user.username}' not recognized. Please login as Admin.")
-    with st.form("admin_login_main"):
-        admin_pass = st.text_input("Admin Password", type="password")
-        if st.form_submit_button("Login"):
-            if admin_pass == settings.admin_password:
-                session_service.start_session(current_user.username)
-                st.success("Welcome, Admin.")
-                st.rerun()
-            else:
-                st.error("Invalid password")
-    return False
+    if current_user.role == "GUEST" and "requested_page" not in st.session_state:
+        st.session_state["requested_page"] = "Guest Portal"
+        st.session_state["active_group"] = "🌐 Portals"
+
+    return True
 
 
 def run() -> None:
     settings = get_app_settings()
     favicon_uri = f"data:image/svg+xml;base64,{FAVICON_B64}"
     st.set_page_config(page_title=settings.app_title, page_icon=favicon_uri, layout="wide")
+    
+    # Bulletproof URL guard: prevent any query parameter injection
+    st.query_params.clear()
+    
     inject_seo_metadata(settings)
     ensure_app_state()
     ensure_filter_state()

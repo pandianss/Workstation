@@ -98,7 +98,7 @@ def render_data_table(frame: pd.DataFrame, title: str, export_name: str) -> None
     st.download_button("📥 Export to Excel", data=excel_bytes, file_name=export_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-def render_chart_container(frame: pd.DataFrame, x: str, y: str, title: str, kind: str = "line", color: str | None = None):
+def render_chart_container(frame: pd.DataFrame, x: str, y: str | list[str], title: str, kind: str = "line", color: str | None = None):
     if frame.empty:
         st.info("No data available.")
         return

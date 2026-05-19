@@ -36,11 +36,11 @@ def compile_performer_data(selected_date: datetime.date, metric_col: str, basis:
     if df.empty:
         return [], []
         
-    current_month_df = df[df["DATE"].dt.date == selected_date]
+    current_month_df = df[df["DATE"].dt.date == selected_date] # type: ignore
     if current_month_df.empty:
         return [], []
         
-    prev_ye_df = df[df["DATE"].dt.date == prev_ye_date]
+    prev_ye_df = df[df["DATE"].dt.date == prev_ye_date] # type: ignore
     
     master_svc = MasterService()
     units = master_svc.repo.get_by_category("UNIT")
@@ -134,14 +134,20 @@ def render_ingestion_portal(service, letter_service):
                     mis_dir = project_path("data", "mis")
                     mis_dir.mkdir(parents=True, exist_ok=True)
                     
+                    import os
                     # Phase 1: Saving files to disk
                     for i, mis_file in enumerate(mis_files):
+                        if mis_file.size > 50 * 1024 * 1024:
+                            st.error(f"File {mis_file.name} exceeds 50MB limit.")
+                            continue
+                            
                         current_pct = (i + 1) / (len(mis_files) * 2)
                         progress_bar.progress(
                             current_pct, 
                             text=f"📥 Saving files: {i+1} of {len(mis_files)} ({int(current_pct*100)}%)"
                         )
-                        with open(mis_dir / mis_file.name, "wb") as f:
+                        safe_name = os.path.basename(mis_file.name)
+                        with open(mis_dir / safe_name, "wb") as f:
                             f.write(mis_file.getbuffer())
                     
                     # Phase 2: Processing and Syncing to DB
@@ -169,13 +175,16 @@ def render_ingestion_portal(service, letter_service):
             st.caption("Update annual goals and SOL targets (.csv)")
             budget_file = st.file_uploader("Upload Budget", type=["csv"], key="daily_budget", label_visibility="collapsed")
             if budget_file:
-                with st.spinner("Syncing targets..."):
-                    target_path = project_path("files", "Budget3.csv")
-                    with open(target_path, "wb") as f:
-                        f.write(budget_file.getbuffer())
-                    letter_service.budget_repo.sync_if_needed()
-                    st.success("Regional targets updated successfully!")
-                    st.rerun()
+                if budget_file.size > 10 * 1024 * 1024:
+                    st.error("Budget file exceeds 10MB limit.")
+                else:
+                    with st.spinner("Syncing targets..."):
+                        target_path = project_path("files", "Budget3.csv")
+                        with open(target_path, "wb") as f:
+                            f.write(budget_file.getbuffer())
+                        letter_service.budget_repo.sync_if_needed()
+                        st.success("Regional targets updated successfully!")
+                        st.rerun()
 
     st.divider()
     h_title_col, h_action_col = st.columns([3, 1])
@@ -423,7 +432,7 @@ def render() -> None:
             if not frame.empty:
                 # Add Branch Name column for display
                 frame["Branch"] = frame["SOL"].map(lambda x: unit_map.get(int(x), f"SOL {x}") if pd.notnull(x) else "Unknown")
-                st.dataframe(frame[["Branch", "ADV", "TOTAL DEPOSITS", "NPA %"]].sort_values("ADV", ascending=False), 
+                st.dataframe(frame[["Branch", "ADV", "TOTAL DEPOSITS", "NPA %"]].sort_values("ADV", ascending=False).head(500), 
                              hide_index=True, use_container_width=True)
             
     with tabs[1]:
@@ -454,9 +463,12 @@ def render() -> None:
                 adv_df = adv_service.process_data(uploaded_adv)
                 # Persist to database
                 saved_date = adv_service.save_to_db(adv_df)
-                st.success(f"Successfully processed and saved report for {saved_date.strftime('%d-%b-%Y')}")
-                # Set as current view
-                selected_report_dt = saved_date
+                if saved_date:
+                    st.success(f"Successfully processed and saved report for {saved_date.strftime('%d-%b-%Y')}")
+                    # Set as current view
+                    selected_report_dt = saved_date
+                else:
+                    st.error("Failed to save report.")
         elif selected_report_dt:
             with st.spinner("Loading stored report..."):
                 adv_df = adv_service.get_stored_data(selected_report_dt)
@@ -527,9 +539,9 @@ def render() -> None:
                     # Sort by Category then FY Total
                     b_df = b_df.sort_values(['Category', 'FY (Cr)'], ascending=[True, False])
                     st.table(b_df.style.format({
-                        'Mth (Cr)': lambda x: format_indian_number(x),
-                        'Qtr (Cr)': lambda x: format_indian_number(x),
-                        'FY (Cr)': lambda x: format_indian_number(x),
+                        'Mth (Cr)': lambda x: format_indian_number(float(x) if pd.notnull(x) else 0.0),
+                        'Qtr (Cr)': lambda x: format_indian_number(float(x) if pd.notnull(x) else 0.0),
+                        'FY (Cr)': lambda x: format_indian_number(float(x) if pd.notnull(x) else 0.0),
                         'Mth Cnt': '{:,}',
                         'Qtr Cnt': '{:,}',
                         'FY Cnt': '{:,}'
@@ -588,7 +600,7 @@ def render() -> None:
 
             st.markdown("#### Sector Breakdown")
             sector_df = pd.DataFrame([{'Sector': k, 'Count': v['count'], 'Balance (Cr)': v['sum']} for k, v in stats['by_sector'].items()])
-            st.dataframe(sector_df.sort_values('Balance (Cr)', ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(sector_df.sort_values('Balance (Cr)', ascending=False).head(500), use_container_width=True, hide_index=True)
         else:
             st.warning("Please upload an Advances file to begin analysis.")
 
@@ -669,7 +681,7 @@ def render() -> None:
                             with zipfile.ZipFile(zip_buffer, "w") as zf:
                                 for i, b in enumerate(snapshot.milestone_breakthroughs):
                                     # PDF Letter
-                                    pdf = doc_service.generate_milestone_appreciation(b, selected_signatory)
+                                    pdf = doc_service.generate_milestone_appreciation(b, selected_signatory or {})
                                     pdf_name = f"Appreciation_{b['branch_name'].replace(' ', '_')}_{b['parameter']}.pdf"
                                     zf.writestr(f"Letters/{pdf_name}", pdf)
                                     
@@ -720,12 +732,12 @@ def render() -> None:
                 display_df = filtered_df[["sol", "branch_name", "parameter", "value", "milestone"]].copy()
                 display_df.columns = ["SOL", "Branch", "Parameter", "Value (Cr)", "Milestone"]
                 display_df["Value (Cr)"] = display_df["Value (Cr)"].map(lambda x: f"{x:.2f}")
-                st.dataframe(display_df.sort_values(["Milestone", "Value (Cr)"], ascending=False), hide_index=True, use_container_width=True)
+                st.dataframe(display_df.sort_values(["Milestone", "Value (Cr)"], ascending=False).head(500), hide_index=True, use_container_width=True)
             
             st.divider()
             st.markdown("#### Achievement Heatmap (Parameter vs Level)")
             summary_df = pd.DataFrame(summary_data)
-            st.dataframe(summary_df.sort_values("Total Milestones", ascending=False), hide_index=True, use_container_width=True)
+            st.dataframe(summary_df.sort_values("Total Milestones", ascending=False).head(500), hide_index=True, use_container_width=True)
 
     with tabs[3]:
         st.subheader("🎯 Monthly Budget Matrix")
@@ -739,7 +751,7 @@ def render() -> None:
             formatted_df = budget_df.copy()
             for col in formatted_df.columns:
                 formatted_df[col] = formatted_df[col].apply(lambda x: format_cr(x) if pd.notnull(x) else "-")
-            st.dataframe(formatted_df, use_container_width=True)
+            st.dataframe(formatted_df.head(500), use_container_width=True)
             
             csv = budget_df.to_csv().encode('utf-8')
             st.download_button(
@@ -798,7 +810,7 @@ def render() -> None:
                         return True
                     except: return False
                 
-                signatory_profile = letter_service.doc_service._resolve_staff_profile(selected_sig_roll)
+                signatory_profile = letter_service.doc_service._resolve_staff_profile(str(selected_sig_roll) if selected_sig_roll else "")
                 formatted_comm_date = comm_date.strftime("%d.%m.%Y")
                 zip_bytes = letter_service.generate_budget_zip(
                     budget_data, 
